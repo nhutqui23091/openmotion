@@ -127,6 +127,8 @@ jobs:
         run: node .github/scripts/ci-scope.mjs
       - name: Test release controls without publication credentials
         run: node --test tests/release-workflows.test.mjs tests/release-scan.test.mjs tests/registry-download.test.mjs tests/stable-release.test.mjs tests/release-notes.test.mjs tests/publish-template-catalog.test.mjs tests/template-registry-consumer.test.mjs
+      - name: Keep local-only agent material out of the repository source
+        run: node --experimental-strip-types --test tests/local-only-paths.test.ts
       - name: Install locked Motion dependencies
         if: steps.scope.outputs.full == 'true'
         run: npm ci --no-audit --no-fund

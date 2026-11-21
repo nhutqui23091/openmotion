@@ -128,3 +128,13 @@ web/inline-video.html
 /mcp-ui/template-recommendations/build/
 
 /docs/readme/maintainer-media-merge-smoke.webm
+
+# Local-only agent support material. It documents contributor workflows for one checkout and must
+# never become part of the project source, a commit or a published artifact.
+/AGENTS_PR_RULE.md
+/PRE-PR.md
+/PR_SKILLS.md
+/AUDIT_PR/
+/codex-security/
+/superpowers/
+/humanizer/
