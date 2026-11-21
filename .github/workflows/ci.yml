@@ -346,7 +346,7 @@ jobs:
       - name: Workspace, wrapper and session regression
         if: steps.scope.outputs.full == 'true'
         timeout-minutes: 10
-        run: node --experimental-strip-types --test --test-concurrency=1 tests/server.test.ts tests/projects.test.ts tests/sessions.test.ts tests/multi-project.test.ts tests/asset-naming.test.ts tests/history.test.ts
+        run: node --experimental-strip-types --test --test-concurrency=1 tests/client-error.test.ts tests/server.test.ts tests/projects.test.ts tests/sessions.test.ts tests/multi-project.test.ts tests/asset-naming.test.ts tests/history.test.ts
       - name: Built-in template playback and export regression
         if: steps.scope.outputs.full == 'true'
         run: node --experimental-strip-types --test tests/decision-tree.test.ts

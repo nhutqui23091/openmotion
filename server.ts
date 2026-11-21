@@ -29,6 +29,7 @@ import { startOwnedStudio } from './shared/owned-studio.mjs';
 import { sharedEditorEnabled, ensureEditor, editorRequest } from './editor-runtime.ts';
 import { agentGuide, containerIntegration, integrationConfig, integrationHost, type IntegrationInfo } from './shared/integration.ts';
 import { validateInstruction } from './shared/conversation.ts';
+import { clientErrorMessage, isFilesystemError } from './shared/client-error.ts';
 import { creationMode, creationModes, artifactViewers, availableSession, type CreativeSession, type CreationMode } from './shared/session.ts';
 import { gatewayFor } from './gateway/service.ts';
 import { providerDirectory, setDefaultModel, syncProvider } from './gateway/settings.ts';
@@ -512,9 +513,12 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
         return json(res, 200, result);
       }
       catch (error) {
-        const message = error instanceof Error ? error.message : 'Tool failed';
+        const message = clientErrorMessage(error, 'Tool failed');
         const { error_code, invalid_field, validation_rule } = toolFailureFields(error);
-        return json(res, 400, { error: message, ...(error_code !== 'TOOL_FAILED' ? { code: error_code } : {}),
+        // A masked filesystem failure keeps a stable code, because the MCP side rebuilds this
+        // error from JSON and can no longer see the original errno.
+        const code = isFilesystemError(error) ? 'FILE_OPERATION_FAILED' : error_code;
+        return json(res, 400, { error: message, ...(code !== 'TOOL_FAILED' ? { code } : {}),
           ...(invalid_field ? { invalid_field, validation_rule } : {}),
           applied: (error as any)?.applied === false || message.startsWith('VERSION_NOT_RESTORABLE:') ? false : 'unknown' });
       }
@@ -802,7 +806,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
     return json(res, 404, { error: 'Not found' });
   } catch (error) {
     if (res.headersSent) res.destroy();
-    else json(res, error instanceof Conflict || (error as any).code === 'NATIVE_RUNTIME_NOT_READY' ? 409 : 400, { error: error instanceof Error ? error.message : '操作失败', ...((error as any).code === 'NATIVE_RUNTIME_NOT_READY' ? { code: (error as any).code, applied: false, runtime: (error as any).details } : {}) });
+    else json(res, error instanceof Conflict || (error as any).code === 'NATIVE_RUNTIME_NOT_READY' ? 409 : 400, { error: clientErrorMessage(error, '操作失败'), ...((error as any).code === 'NATIVE_RUNTIME_NOT_READY' ? { code: (error as any).code, applied: false, runtime: (error as any).details } : {}) });
   }
 }
 

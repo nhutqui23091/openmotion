@@ -21,6 +21,7 @@ import { createAppTracking, closeTracking, type OmTracking } from './shared/trac
 import { uuid } from './tracking/core.ts';
 import { mcpToolNames } from './tracking/events.ts';
 import { toolFailureFields, toolInputFields } from './tracking/tool-fields.ts';
+import { clientErrorMessage } from './shared/client-error.ts';
 import { identifyHost, unknownHost } from './tracking/host.ts';
 import type { HostContext } from './tracking/host.ts';
 import { templateCatalogFor } from './prism-templates.ts';
@@ -217,7 +218,7 @@ async function invokeRpc(message: any, store: WorkspaceStore, registry: ReturnTy
       } else value = await callTool(name, message.params?.arguments || {}, store, await trackingFor(store));
       return result({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Tool failed';
+      const message = clientErrorMessage(error, 'Tool failed');
       const code = (error as any).code || /^([A-Z][A-Z_]+):?/.exec(message)?.[1] || 'TOOL_FAILED';
       const { invalid_field, validation_rule } = toolFailureFields(error);
       const runtimeFailure = ['MCP_RUNTIME_RELOAD_REQUIRED', 'EDITOR_RUNTIME_INCOMPATIBLE', 'NATIVE_RUNTIME_NOT_READY'].includes(code);
