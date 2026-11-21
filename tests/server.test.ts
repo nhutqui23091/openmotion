@@ -106,3 +106,28 @@ test('container connection instructions launch Docker on the host, preserving th
     else process.env.MOTION_CONTAINER_NAME = previous;
   }
 }));
+
+test('download headers sanitise the plain name and keep the exact name encoded', async () => {
+  const { attachmentDisposition, encodedFilename, plainFilename } = await import('../shared/http-header.ts');
+  assert.equal(attachmentDisposition('clip.mp4'), 'attachment; filename="clip.mp4"; filename*=UTF-8\'\'clip.mp4');
+  // A quote or backslash must not survive into the header value; CRLF never reaches Node.
+  const hostile = attachmentDisposition('a"b\\c.mp4');
+  assert.ok(!hostile.includes('"a"b'), hostile);
+  assert.match(hostile, /filename="a_b_c\.mp4"/);
+  // Non-ASCII collapses in the plain parameter but survives percent-encoded.
+  const unicode = attachmentDisposition('\u89c6\u9891.mp4');
+  assert.match(unicode, /filename="_+\.mp4"/);
+  assert.match(unicode, /filename\*=UTF-8''%E8%A7%86%E9%A2%91\.mp4/);
+  // RFC 5987 attr-char excludes these delimiters, so they must be percent-encoded.
+  for (const character of ["'", '(', ')', '*']) {
+    assert.equal(encodedFilename(character), '%' + character.charCodeAt(0).toString(16).toUpperCase());
+  }
+  // `!` is an allowed attr-char, but the shared encoder escapes the whole delimiter set
+  // so one rule covers every caller; percent-encoding an allowed character stays valid.
+  assert.equal(encodedFilename('!'), '%21');
+  // An explicit plain-name override is sanitised too, so a caller cannot bypass the rule.
+  const overridden = attachmentDisposition('real"name.mp4', 'generic"name.mp4');
+  assert.match(overridden, /filename="generic_name\.mp4"/);
+  assert.match(overridden, /filename\*=UTF-8''real%22name\.mp4/);
+  assert.equal(plainFilename('a"b\\c'), 'a_b_c');
+});

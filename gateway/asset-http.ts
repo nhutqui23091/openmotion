@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { attachmentDisposition } from '../shared/http-header.ts';
 import { constants } from 'node:fs';
 import { mkdir, open, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -54,7 +55,7 @@ export async function assetHttp(req: IncomingMessage, res: ServerResponse, url: 
     }
     res.writeHead(status, { 'Content-Type': version.mimeType, 'Content-Length': end - start + 1, 'Accept-Ranges': 'bytes',
       'Content-Security-Policy': "default-src 'none'; sandbox", 'X-Content-Type-Options': 'nosniff',
-      ...(url.searchParams.has('download') ? { 'Content-Disposition': `attachment; filename="${version.filename}"` } : {}) });
+      ...(url.searchParams.has('download') ? { 'Content-Disposition': attachmentDisposition(version.filename) } : {}) });
     if (req.method === 'HEAD') res.end();
     else await pipeline(file.createReadStream({ start, end, autoClose: false }), res);
   } finally { await file.close(); }

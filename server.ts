@@ -7,6 +7,7 @@ import { modelMetadata } from './gateway/model-metadata.ts';
 import { assetConversations } from './gateway/asset-chat.ts';
 import { assetHttp } from './gateway/asset-http.ts';
 import { getWorkflow } from './shared/workflow.ts';
+import { attachmentDisposition } from './shared/http-header.ts';
 import { isMain } from './shared/entry.ts';
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
@@ -437,7 +438,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
       state.running = true; state.lastExport = Date.now();
       try {
         const result = await collectDiagnostics({ appRoot: context.nativeRoot ?? pluginRoot, dataDirectory: directory, browserErrors: data.errors });
-        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${result.filename}"`,
+        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': attachmentDisposition(result.filename),
           'Content-Length': result.data.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
         res.end(result.data); return;
       } finally { state.running = false; }
@@ -537,7 +538,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end(agentGuide(info, selected) + recipe);
       }
       const config = integrationConfig(info, selected);
-      res.writeHead(200, { 'Content-Type': config.contentType, 'Content-Disposition': `attachment; filename="${config.filename}"` });
+      res.writeHead(200, { 'Content-Type': config.contentType, 'Content-Disposition': attachmentDisposition(config.filename) });
       return res.end(config.text);
     }
     if (req.method === 'GET' && /^\/connect\/?$/.test(url.pathname)) {
