@@ -8,12 +8,22 @@ on:
       - 'tracking/**'
       - 'shared/tracking.ts'
       - 'tests/tracking-device*.test.ts'
+  # A pull-request-only trigger never exercises the merged commit, so a
+  # regression that only appears on main would stay invisible. The same path
+  # filter keeps this cheap outside tracking changes.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/device-identity-check.yml'
+      - 'tracking/**'
+      - 'shared/tracking.ts'
+      - 'tests/tracking-device*.test.ts'
 
 permissions:
   contents: read
 
 concurrency:
-  group: device-identity-${{ github.event.pull_request.number }}
+  group: device-identity-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
