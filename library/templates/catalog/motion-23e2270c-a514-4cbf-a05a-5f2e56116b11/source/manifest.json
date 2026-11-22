@@ -1,0 +1,72 @@
+{
+  "schema": "motion-package-v1",
+  "purpose": "style-guidance",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "fps": 30,
+  "durationSeconds": 58.5,
+  "timebase": "seconds",
+  "coordinates": "Source pixels; top-left origin; twelve absolute-positioned scene clips; GSAP timeline uses the same seconds timebase.",
+  "sources": [],
+  "assets": [],
+  "timings": {
+    "prepareSeconds": null,
+    "measurementSeconds": null,
+    "agentPlanningSeconds": null,
+    "renderSeconds": null
+  },
+  "unrecovered": [],
+  "stopReason": "completed",
+  "provenance": {
+    "planAndMechanisms": "authored for this repository contribution",
+    "numericalTracks": "scene timings authored from the reference motion grammar; no source video or reference imagery is bundled",
+    "sourceIdentity": {
+      "id": "V354",
+      "sha256": null,
+      "sourceUrl": "https://www.linkedin.com/posts/airtable_airtableai-nocodeai-activity-7343347865622036481-yJJC"
+    },
+    "referenceImplementation": "original editable HTML recreation of the request-to-result motion language; not a frame-by-frame copy",
+    "originalProductionModel": "unknown",
+    "extraction": "manual motion analysis and original HTML/CSS/GSAP authoring",
+    "repositoryImport": "New repository-native template; no CMS archive or import normalization."
+  },
+  "files": [
+    {
+      "path": "assets/DEPENDENCIES.md",
+      "bytes": 1405,
+      "sha256": "f6e07f5ab79e60018e72198298e22069a8de6d42ffaa79e926c1a3e5049b14a2"
+    },
+    {
+      "path": "assets/GSAP-LICENSE.txt",
+      "bytes": 4538,
+      "sha256": "1c777aec2ecd4eba9d81c00c881aaed3108f2e11a4f7971c09c5191997734e7c"
+    },
+    {
+      "path": "assets/gsap.min.js",
+      "bytes": 72927,
+      "sha256": "92bb9a96476f983d212a2bc4f54c889039c1696dd4461d40a736860938570fbb"
+    },
+    {
+      "path": "compositions/app-builder.html",
+      "bytes": 21145,
+      "sha256": "362dab4a6625e4b15a6315e24c37c01829923e7efeedf5670d9b886b404baa01"
+    },
+    {
+      "path": "index.html",
+      "bytes": 1313,
+      "sha256": "fa86c3a98876402aa5ae79a49fc19e5269f2500a1eda1cbe5cc376ebe0660b5a"
+    },
+    {
+      "path": "motion.md",
+      "bytes": 4392,
+      "sha256": "8a35ecedd777c29b2ee43942a844e53c02646e2281ade155056f8e3f618a473f"
+    },
+    {
+      "path": "preview.html",
+      "bytes": 6805,
+      "sha256": "8e56bc780fa2ad6b3d2388de093c65a6806aa541563625486fe205a078a650ef"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[{"id":"headline","type":"string","label":"Opening headline","default":"CREATE AN APP","maxLength":40},{"id":"request","type":"string","label":"First request","default":"Build a site map for field visits with status and owner.","maxLength":90},{"id":"tagline","type":"string","label":"Closing tagline","default":"Describe it. Generate it. Update it.","maxLength":60}]'>
+<head>
+<meta charset="utf-8">
+<title>AI App Builder — Request to Result</title>
+<script src="assets/gsap.min.js"></script>
+<style>
+  html,body{margin:0;width:100%;height:100%;background:#61a6bd}
+  #main{position:relative;width:1920px;height:1080px;overflow:hidden;background:#61a6bd}
+</style>
+</head>
+<body>
+<div data-hf-id="hf-main" id="main" data-composition-id="main" data-start="0" data-duration="58.5" data-width="1920" data-height="1080" data-fps="30">
+  <div data-hf-id="hf-app-builder" id="app-builder" data-composition-id="app-builder" data-composition-src="compositions/app-builder.html" data-start="0" data-duration="58.5" data-width="1920" data-height="1080" data-track-index="1" data-track-kind="graphics"></div>
+</div>
+<script>
+  window.__timelines = window.__timelines || {};
+  window.__timelines['main'] = gsap.timeline({ paused: true });
+</script>
+</body>
+</html>

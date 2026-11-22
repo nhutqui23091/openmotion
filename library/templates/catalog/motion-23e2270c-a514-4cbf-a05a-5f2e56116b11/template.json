@@ -1,0 +1,132 @@
+{
+  "templateId": "motion-23e2270c-a514-4cbf-a05a-5f2e56116b11",
+  "entry": {
+    "templateId": "motion-23e2270c-a514-4cbf-a05a-5f2e56116b11",
+    "sortOrder": 288,
+    "original": {
+      "templateName": "AI App Builder — Request to Result",
+      "summary": "An editable request-to-result app builder: a request appears on the left while a map, dashboard, feedback form and comparison table grow on the right, with skeleton states before content.",
+      "styleDescription": "Field blue, interface ink, paper cream and orange accents; flat sans-serif UI cards on a 1920 × 1080 canvas.",
+      "promotionalUseCases": "Product demo, Product launch",
+      "visualPresentation": "UI motion, Graphic animation",
+      "reviewFocus": "Keep the request panel visible as the cause while the result changes; show structure before data; share one task name across each request/result pair; update only the affected part when a new input arrives.",
+      "durationSeconds": "58.5",
+      "motionTags": "app-builder, request-result, dashboard, attachment-update, original",
+      "author": "OpenMotion contributors",
+      "sourceUrl": "https://github.com/nexu-io/openmotion/tree/main/library/templates/catalog/motion-23e2270c-a514-4cbf-a05a-5f2e56116b11",
+      "notes": "Original repository-native recreation of the request-to-result motion language. Motion reference: Airtable \"Create an app\" (https://www.linkedin.com/posts/airtable_airtableai-nocodeai-activity-7343347865622036481-yJJC). No reference footage, screenshots, brand marks or third-party fonts are redistributed."
+    },
+    "files": [
+      {
+        "path": "assets/DEPENDENCIES.md",
+        "bytes": 1405,
+        "sha256": "f6e07f5ab79e60018e72198298e22069a8de6d42ffaa79e926c1a3e5049b14a2"
+      },
+      {
+        "path": "assets/GSAP-LICENSE.txt",
+        "bytes": 4538,
+        "sha256": "1c777aec2ecd4eba9d81c00c881aaed3108f2e11a4f7971c09c5191997734e7c"
+      },
+      {
+        "path": "assets/gsap.min.js",
+        "bytes": 72927,
+        "sha256": "92bb9a96476f983d212a2bc4f54c889039c1696dd4461d40a736860938570fbb"
+      },
+      {
+        "path": "compositions/app-builder.html",
+        "bytes": 21145,
+        "sha256": "362dab4a6625e4b15a6315e24c37c01829923e7efeedf5670d9b886b404baa01"
+      },
+      {
+        "path": "index.html",
+        "bytes": 1313,
+        "sha256": "fa86c3a98876402aa5ae79a49fc19e5269f2500a1eda1cbe5cc376ebe0660b5a"
+      }
+    ],
+    "previewUrl": null,
+    "coverUrl": null,
+    "motionDocumentUrl": null,
+    "motionGuideUrl": null,
+    "projectFileUrl": null,
+    "brand": "OpenMotion",
+    "colors": [
+      "blue",
+      "ink",
+      "orange",
+      "green",
+      "cream"
+    ],
+    "width": 1920,
+    "height": 1080,
+    "industries": [
+      "Software",
+      "Product"
+    ],
+    "creationModels": [],
+    "conversionStatus": "pending",
+    "conversionNotes": "Repository-native editable HTML project with a source manifest. Not converted from a CMS package; no CMS upload or sourceArchive is required.",
+    "verification": {
+      "render": "not_run",
+      "portableFiles": "not_run",
+      "remoteDelivery": "not_run"
+    },
+    "featuredOrder": null
+  },
+  "locales": {
+    "de": {
+      "original": {
+        "templateName": "AI-App-Builder — Anfrage zu Ergebnis"
+      }
+    },
+    "en": {
+      "original": {
+        "templateName": "AI App Builder — Request to Result"
+      }
+    },
+    "es": {
+      "original": {
+        "templateName": "Creador de apps con IA — De solicitud a resultado"
+      }
+    },
+    "fr": {
+      "original": {
+        "templateName": "Générateur d'applications IA — De la demande au résultat"
+      }
+    },
+    "it": {
+      "original": {
+        "templateName": "Generatore di app AI — Dalla richiesta al risultato"
+      }
+    },
+    "ja": {
+      "original": {
+        "templateName": "AIアプリビルダー — リクエストから結果へ"
+      }
+    },
+    "ko": {
+      "original": {
+        "templateName": "AI 앱 빌더 — 요청에서 결과까지"
+      }
+    },
+    "pt-br": {
+      "original": {
+        "templateName": "Construtor de apps com IA — Da solicitação ao resultado"
+      }
+    },
+    "ru": {
+      "original": {
+        "templateName": "AI-конструктор приложений — От запроса к результату"
+      }
+    },
+    "tr": {
+      "original": {
+        "templateName": "AI Uygulama Oluşturucu — İstenenden sonuca"
+      }
+    },
+    "zh-CN": {
+      "original": {
+        "templateName": "AI 应用生成器 — 从需求到结果"
+      }
+    }
+  }
+}
