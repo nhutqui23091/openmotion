@@ -40,6 +40,7 @@ import { phase1McpCapabilities } from './shared/phase1-tools.ts';
 import { recoverProjectTransactions } from './phase1-versions.ts';
 import { verifyExport } from './scripts/verify-export.ts';
 import { createAppTracking, closeTracking, saveTrackingPreference, trackingPreference, trackingLockReason, type OmTracking } from './shared/tracking.ts';
+import { flushCodexSessionTracking, syncActiveCodexThreads } from './shared/codex-session-tracking.ts';
 import { studioEvents } from './tracking/events.ts';
 import { configureNativeEnvironment, nativeRuntimeStatus, startNativePreparation, requireNativeRuntime } from './scripts/npm-runtime.mjs';
 import { nativeRouteCapability } from './shared/native-runtime.ts';
@@ -64,8 +65,13 @@ const runningExports = new Map<string, AbortController>();
 const workerInstanceId = crypto.randomUUID();
 const collectorId = crypto.randomUUID();
 let lastQueueTelemetry = 0;
+let lastCodexSessionSync = 0;
 
 async function emitQueueTelemetry(store: WorkspaceStore, tracking?: OmTracking) {
+  if (Date.now() - lastCodexSessionSync >= 60_000) {
+    lastCodexSessionSync = Date.now();
+    void syncActiveCodexThreads(store.directory).catch(() => {});
+  }
   if (!tracking) return;
   if (Date.now() - lastQueueTelemetry < 60_000) return;
   lastQueueTelemetry = Date.now();
@@ -885,7 +891,7 @@ export async function startServer(store = sharedStore, port = Number(process.env
   const timer = setInterval(tick, 500); tick();
   return { server, get activeToolCalls() { return (context.phase1?.pending ?? 0) + assetConversations(store).pending; }, openProject: async (projectId: string) => openProject(store, context, origin, (await store.get()).revision, { projectId }, store.projectId), get studio() { return context.studio!; }, ensureStudio: context.ensureStudio,
     info: async () => ({ previewUrl: origin, studioUrl: context.studio?.alive() ? `${origin}/#project/${store.projectId}` : undefined, engine: 'hyperframes', ready: true, editorReady: Boolean(context.studio?.alive()), ffmpeg, revision: (await store.get()).revision, dataDirectory: store.directory, browserOpened: false, nativeRuntime: await nativeRuntimeStatus(pluginRoot), authoringGuide: path.join(runtimeRoot, 'node_modules/hyperframes/dist/skills/hyperframes/SKILL.md'), hyperframesCli: cliPath(runtimeRoot) }),
-    close: async () => { clearInterval(timer); await closeTranscripts(store); await context.browser?.close(); await brandKitsFor(store.directory).close(); await gateway.close(); await assetConversations(store).close(); server.closeAllConnections(); server.close(); await context.studio?.close(); await closeTracking(context.tracking); } };
+    close: async () => { clearInterval(timer); await closeTranscripts(store); await context.browser?.close(); await brandKitsFor(store.directory).close(); await gateway.close(); await assetConversations(store).close(); server.closeAllConnections(); server.close(); await context.studio?.close(); await Promise.allSettled([closeTracking(context.tracking), flushCodexSessionTracking(store.directory)]); } };
 }
 if (isMain(import.meta.url)) {
   try {

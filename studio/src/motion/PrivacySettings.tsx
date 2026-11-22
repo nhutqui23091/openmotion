@@ -33,9 +33,8 @@ export function PrivacySettings({ onClose, embedded = false }: { onClose: () => 
     } catch { toast.showToast(t('Could not save privacy settings.'), 'error'); }
     finally { setBusy(false); }
   }
-  const content = <><section className={embedded ? 'om-card om-card-stack' : undefined}><div className="om-settings-row"><label className="om-subtitle">{t('Share usage data')}</label><Toggle label={t('Share usage data')} checked={status?.enabled ?? false} disabled={!status || busy || status.locked} onChange={enabled => void change(enabled)} /></div>
-      <p className="om-muted">{t('Send feature usage, error categories and approximate region to improve OpenMotion. Prompts and project contents are excluded.')}</p>
-      <p className="om-muted">{t('This setting applies to MCP and Studio on this installation and is kept after restart.')}</p>
+  const content = <><section className={embedded ? 'om-card om-card-stack' : undefined}><div className="om-settings-row"><label className="om-subtitle">{t('Help us improve')}</label><Toggle label={t('Help us improve')} checked={status?.enabled ?? false} disabled={!status || busy || status.locked} onChange={enabled => void change(enabled)} /></div>
+      <p className="om-muted">{t('Collect redacted information needed to improve the product and deliver better service and generation quality.')}</p>
       {status?.locked && <p className="om-muted" role="status">{t(status.reason === 'test_build' ? 'Usage data collection is disabled in test builds.' : 'Disabled by your environment settings.')}</p>}
       {error && <p role="alert">{t(error)}</p>}
     </section><section className={embedded ? 'om-card om-card-stack' : undefined}><DiagnosticExport /></section><StudioToastViewport {...toast} /></>;

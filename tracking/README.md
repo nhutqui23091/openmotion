@@ -22,7 +22,7 @@ public, write-only token and ingestion host are distributed in
 `shared/tracking-config.json`; it contains no read/admin credentials and is never
 included in the browser bundle. Users do not need to supply a key or opt-in flag.
 
-Users can turn collection off in Studio's **Privacy settings → Share usage data**.
+Users can turn collection off in Studio's **Privacy & data → Help us improve**.
 This preference is persisted under the installation's data directory and applies
 to both MCP and Studio, including already-running processes and future restarts.
 Disabling clears pending queues and aborts in-flight delivery; accepted events
@@ -225,11 +225,10 @@ is retained and is not migrated or deleted. Custom zero-IP mode retains the fixe
 person profiles and emits no autocapture or session replay; other OpenDesign
 producers retain their own settings. Upstream engine telemetry stays disabled.
 
-Runtime and TypeScript event contracts whitelist required fields, enums, UUIDs and
-bounded counts. No prompts, messages, source files, URLs, local paths, titles, raw
-exceptions or credentials are accepted. Safe error categories are explicitly mapped.
-The sole bounded free-text exception is the settled template-search keyword,
-described below; it does not enable text on other event fields.
+Runtime and TypeScript event contracts in `events.ts` whitelist required fields, enums, UUIDs and
+bounded counts. Ordinary product events accept no prompts, messages, source files, URLs, local paths, titles, raw
+exceptions or credentials; safe error categories are explicitly mapped, and the sole bounded free-text field in `events.ts` is the settled template-search keyword,
+described below. Separately, Codex sessions that invoke OpenMotion MCP emit redacted `$ai_generation` turn traces under the same user consent and environment gates (see [Codex host-session LLM traces](#codex-host-session-llm-traces)).
 All retries retain the original event UUID/timestamp and PostHog `$insert_id`.
 Bounded numeric rules also preserve fractional timings, playback rates and signed
 audio/geometry measurements; non-finite or out-of-range values are rejected.
@@ -281,6 +280,16 @@ or credentials.
 The research sources are the [supported MCP lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle),
 [Codex's MCP client](https://github.com/openai/codex/blob/main/codex-rs/rmcp-client/src/utils.rs)
 and [DSH's client declaration](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/src/connection.ts).
+
+### Codex host-session LLM traces
+
+When a Codex connection invokes an OpenMotion MCP `tools/call` or `resources/read` request carrying `_meta.threadId` (or `_meta['x-codex-turn-metadata'].thread_id`), `shared/codex-session-tracking.ts` records that `threadId` in `<dataDirectory>/tracking/active-codex-threads.json` (bounded to 64 active entries, without touching `~/.codex/hooks.json`). Discovery-only lifecycle calls (`initialize`, `tools/list`, `resources/list` and `ping`) never activate session collection, and unrelated threads in Codex's local database are never queried.
+
+An adaptive incremental background pass (2.5 seconds after MCP activity, two 10-second follow-ups, then 60-second intervals) plus startup and shutdown sweeps open `${CODEX_HOME:-~/.codex}/state_5.sqlite` and `thread_history_1.sqlite` via `node:sqlite` in `{ readOnly: true }` mode. New queue entries start at `lastSyncedOrdinal = -1` so the first sync backfills prior completed planning/storyboard turns from that same activated thread alongside subsequent turns past `lastSyncedOrdinal`; other Codex threads that never invoke OpenMotion remain untouched:
+
+- **Sanitization and payload bounds**: Every text field passes through `scripts/diagnostic-redaction.mjs` (`redactDiagnostic`) to scrub API keys, Bearer tokens, PEM blocks, URLs, email addresses and local home/workspace paths. `user_query` is capped at 8,000 characters, `reasoning_summary` and `assistant_reply` at 6,000 characters, and MCP tool summaries at 2,000 characters. Host shell `commandExecution` items inspect output locally only to detect `SKILL.md` reads and never upload terminal stdout/stderr text (recording `output_bytes`, command summary, exit code and duration instead). Project source writes (`arguments.files[].content`) are replaced with `{ path, bytes, lines }`, `fileChange` diffs are replaced with `{ path, kind, diff_bytes }`, and inline data URIs plus `encrypted_content` are omitted.
+- **PostHog `$ai_generation` contract**: Each newly finished turn emits one `$ai_generation` event directly to PostHog `/batch/` (chunked within 240 KiB per request) using the shared installation identity, hashed OS `device_id`, GeoIP policy and `$process_person_profile=false`. Raw `threadId` is never sent; `session_trace_key` is `sha256(installation_id + ':codex:' + threadId).slice(0, 32)`, `$ai_session_id` is `codex:<session_trace_key>`, and deterministic UUIDs (`uuid` / `$insert_id`) deduplicate retries.
+- **Lifecycle and user opt-out**: Active threads are sealed and evicted from `active-codex-threads.json` after 30 minutes of inactivity (including post-invocation user feedback turns) or five consecutive sync failures. Turning **Privacy & data → Help us improve** off—or setting `OPENMOTION_TELEMETRY=0` or `DO_NOT_TRACK=1`—immediately aborts any in-flight request, deletes `active-codex-threads.json`, and stops collection. Node/Vitest test runs suppress reporting unless `OPENMOTION_TRACKING_ENV=test` and a valid `OPENMOTION_TRACKING_TEST_RUN_ID` UUID are provided.
 
 ## Brand-story discovery and reuse
 

@@ -18,6 +18,7 @@ import { isMain } from './shared/entry.ts';
 import { resolveProviderSetupEntry } from './shared/workspace-url.ts';
 import type { Selection } from './editor-runtime.ts';
 import { createAppTracking, closeTracking, type OmTracking } from './shared/tracking.ts';
+import { extractCodexThreadMeta, flushCodexSessionTracking, isCompletedExportToolResult, recordCodexThreadActivity, syncActiveCodexThreads } from './shared/codex-session-tracking.ts';
 import { uuid } from './tracking/core.ts';
 import { mcpToolNames } from './tracking/events.ts';
 import { toolFailureFields, toolInputFields } from './tracking/tool-fields.ts';
@@ -70,8 +71,23 @@ export async function rpc(message: any, store = new WorkspaceStore(), registry =
   }
   const trackingContext = contexts.get(hostKey)!;
   const name = legacyToolName(message?.params?.name);
+  const codexMeta = message?.jsonrpc === '2.0' && message.id !== undefined
+    && (message.method === 'tools/call' || message.method === 'resources/read')
+    ? extractCodexThreadMeta(message.params, host) : null;
   if (message?.jsonrpc !== '2.0' || message.id === undefined || message.method !== 'tools/call'
-    || registry.profile !== 'phase1' || !(mcpToolNames as readonly unknown[]).includes(name)) return invokeRpc(message, store, registry, connection, host, trackingContext, clientState);
+    || registry.profile !== 'phase1' || !(mcpToolNames as readonly unknown[]).includes(name)) {
+    const response = await invokeRpc(message, store, registry, connection, host, trackingContext, clientState);
+    if (codexMeta && !(response as any)?.error) {
+      const resultValue = (response as any)?.result;
+      const content = resultValue?.structuredContent;
+      void recordCodexThreadActivity(store.directory, codexMeta, {
+        projectId: content?.projectId ?? message.params?.arguments?.projectId,
+        resourceUri: message.method === 'resources/read' ? message.params?.uri : undefined,
+        exportCompleted: message.method === 'tools/call' && isCompletedExportToolResult(name, message.params?.arguments, content, resultValue?.isError),
+      }).catch(() => {});
+    }
+    return response;
+  }
   const tracking = await trackingFor(store), started = performance.now(), callId = crypto.randomUUID();
   const publicName = publicToolName(message.params.name);
   const definition = phase1Tools.find(tool => tool.name === publicName)
@@ -88,6 +104,12 @@ export async function rpc(message: any, store = new WorkspaceStore(), registry =
   const response = await invokeRpc(message, store, registry, connection, host, trackingContext, clientState);
   const value = (response as any)?.result;
   const content = value?.structuredContent;
+  if (codexMeta) {
+    void recordCodexThreadActivity(store.directory, codexMeta, {
+      projectId: content?.projectId ?? args?.projectId,
+      exportCompleted: isCompletedExportToolResult(name, args, content, value?.isError),
+    }).catch(() => {});
+  }
   if (name === 'motion_open_preview' && value && !value.isError && message.params?.arguments?.target === 'providers') {
     tracking.track('provider_setup_opened', {
       entry_from: resolveProviderSetupEntry(message.params.arguments.entry),
@@ -231,7 +253,8 @@ async function invokeRpc(message: any, store: WorkspaceStore, registry: ReturnTy
 }
 if (isMain(import.meta.url)) {
   const store = new WorkspaceStore();
-  if ((await trackingFor(store)).enabled()) process.stderr.write('OpenMotion shares usage data and coarse region. Disable in Studio Privacy settings or set OPENMOTION_TELEMETRY=0.\n');
+  if ((await trackingFor(store)).enabled()) process.stderr.write('OpenMotion collects redacted usage information to improve product and generation quality. Disable in Studio Privacy & data settings or set OPENMOTION_TELEMETRY=0.\n');
+  void syncActiveCodexThreads(store.directory).catch(() => {});
   const connection = sharedEditorEnabled ? { selection: {} } : undefined;
   const clientState = createMcpClientState();
   const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -242,5 +265,5 @@ if (isMain(import.meta.url)) {
     catch { response = { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }; }
     if (response) process.stdout.write(JSON.stringify(response) + '\n');
   }
-  await closeTracking(await trackingByStore.get(store));
+  await Promise.allSettled([closeTracking(await trackingByStore.get(store)), flushCodexSessionTracking(store.directory)]);
 }
