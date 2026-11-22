@@ -14,11 +14,13 @@ import { transcriptRequest } from './transcriptClient';
 import { useCaptionWorkspace } from './captionWorkspace';
 import { useDockLayoutStore } from '../components/dock/dockLayoutStore';
 import { useCaptionSurfaceActive } from './useCaptionSurfaceActive';
+import { useTranscriptServiceAvailable } from './useTranscriptServiceAvailable';
 import { projectMediaPath } from './timelineMediaSelection';
 
 export function AutoCaptionsPanel({ visible = true }: { visible?: boolean }) {
   const surfaceActive = useCaptionSurfaceActive('captions');
-  const active = surfaceActive && visible;
+  const transcriptServiceAvailable = useTranscriptServiceAvailable();
+  const active = surfaceActive && visible && transcriptServiceAvailable;
   const epoch = useCaptionWorkspace(s => s.epoch);
   const { t } = useI18n(), shell = useStudioShellContext(), files = useFileManagerContext(), chrome = useOptionalWorkspaceChrome();
   const { write, disabled: writeDisabled } = useNativeCaptionWrite();
@@ -119,7 +121,7 @@ export function AutoCaptionsPanel({ visible = true }: { visible?: boolean }) {
       const subtitles = await file.text(); if (alive.current) await write({ command: 'caption_add', subtitles, timelineStart: usePlayerStore.getState().currentTime });
     }); }} />
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
-      {loading ? <Skeleton className="h-24 w-full" /> : failed ? <div role="alert" className="flex flex-col gap-2"><p>{t('Could not load transcripts')}</p><Button onClick={() => void refresh()}>{t('Retry')}</Button></div> : <>
+      {!transcriptServiceAvailable ? <p role="status" data-deferred-p2="true" className="text-step-12 text-text-2">{t('Cloud speech recognition is coming in Phase 2. You can import SRT or VTT subtitles now.')}</p> : loading ? <Skeleton className="h-24 w-full" /> : failed ? <div role="alert" className="flex flex-col gap-2"><p>{t('Could not load transcripts')}</p><Button onClick={() => void refresh()}>{t('Retry')}</Button></div> : <>
         <label className="flex min-w-0 flex-col gap-2 text-step-11 text-text-2">{t('Source media')}
           <Select label={t('Source media')} value={source} disabled={disabled || !sources.length} options={sources.length ? sources.map(item => ({ value: item.path, label: item.path.split('/').pop()! })) : [{ value: '', label: t('Import audio / video') }]} onCommit={value => { setSource(value); setReady(null); setJob(null); }} />
         </label>
@@ -138,7 +140,7 @@ export function AutoCaptionsPanel({ visible = true }: { visible?: boolean }) {
       {ready && <Button size="sm" variant="ghost" onClick={() => { useCaptionWorkspace.getState().select(shell.projectId, ready.source.path, ready.id); useDockLayoutStore.getState().activatePanel('transcript'); }}>{t('Edit transcript')}</Button>}
     </div>
     <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
-      <Button variant="primary" disabled={disabled || loading || failed || !source} onClick={() => ready ? void addReady(ready) : void submit()}>{t(busy ? 'Working…' : ready ? 'Add captions to video' : model ? 'Generate captions' : 'Connect speech model')}</Button>
+      {transcriptServiceAvailable && <Button variant="primary" disabled={disabled || loading || failed || !source} onClick={() => ready ? void addReady(ready) : void submit()}>{t(busy ? 'Working…' : ready ? 'Add captions to video' : model ? 'Generate captions' : 'Connect speech model')}</Button>}
       <Button size="sm" variant="ghost" disabled={disabled} onClick={() => subtitleInput.current?.click()}>{t('Import SRT / VTT')}</Button>
     </div>
   </div>;

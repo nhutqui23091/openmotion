@@ -324,30 +324,23 @@ export function useTimelineGroupEditing({
         // reload (see the trackOnly doc above). Mixed batches (any start
         // change) keep the full fallback below.
         if (trackOnly) return;
-        // The timing persist above already committed to disk, so the cached
-        // GSAP read is stale whether or not the position rewrite succeeded —
-        // invalidate on the error path too (matches the single-element path's
-        // `.finally`), or a failed rewrite leaves the editor reading old tweens.
-        try {
-          await finishGroupTimingGsapFallback({
-            projectId,
-            iframe: previewIframeRef.current,
-            reloadPreview,
-            label,
-            errorLabel: "Failed to shift GSAP positions",
-            coalesceKey,
-            recordEdit,
-            writeProjectFile,
-            activeCompPath,
-            changes,
-            sdkGsap: sdk?.sdkGsap,
-            resolveChangePath: (element) => targetPathFor(element, activeCompPath),
-            mutationFor: (change) =>
-              shiftGsapMutation(change.element.domId, change.start - change.element.start),
-          });
-        } finally {
-          invalidateGsapCache?.();
-        }
+        await finishGroupTimingGsapFallback({
+          projectId,
+          iframe: previewIframeRef.current,
+          reloadPreview,
+          invalidateGsapCache,
+          label,
+          errorLabel: "Failed to shift GSAP positions",
+          coalesceKey,
+          recordEdit,
+          writeProjectFile,
+          activeCompPath,
+          changes,
+          sdkGsap: sdk?.sdkGsap,
+          resolveChangePath: (element) => targetPathFor(element, activeCompPath),
+          mutationFor: (change) =>
+            shiftGsapMutation(change.element.domId, change.start - change.element.start),
+        });
       }).catch((error) => {
         // Failed persist: revert the optimistic duration readout + live root
         // alongside the gesture owner's store rollback.
@@ -437,34 +430,29 @@ export function useTimelineGroupEditing({
             coalesceMs,
           );
         }
-        // See the move path: the timing persist is already on disk, so the GSAP
-        // cache must be invalidated even when the position rewrite throws.
-        try {
-          await finishGroupTimingGsapFallback({
-            projectId,
-            iframe: previewIframeRef.current,
-            reloadPreview,
-            label: "Resize timeline clips",
-            errorLabel: "Failed to scale GSAP positions",
-            coalesceKey,
-            recordEdit,
-            writeProjectFile,
-            activeCompPath,
-            changes,
-            sdkGsap: sdk?.sdkGsap,
-            resolveChangePath: (element) => targetPathFor(element, activeCompPath),
-            mutationFor: (change) =>
-              scaleGsapMutation(
-                change.element.domId,
-                toCompositionTime(change.element, change.element.start),
-                change.element.duration,
-                toCompositionTime(change.element, change.start),
-                change.duration,
-              ),
-          });
-        } finally {
-          invalidateGsapCache?.();
-        }
+        await finishGroupTimingGsapFallback({
+          projectId,
+          iframe: previewIframeRef.current,
+          reloadPreview,
+          invalidateGsapCache,
+          label: "Resize timeline clips",
+          errorLabel: "Failed to scale GSAP positions",
+          coalesceKey,
+          recordEdit,
+          writeProjectFile,
+          activeCompPath,
+          changes,
+          sdkGsap: sdk?.sdkGsap,
+          resolveChangePath: (element) => targetPathFor(element, activeCompPath),
+          mutationFor: (change) =>
+            scaleGsapMutation(
+              change.element.domId,
+              toCompositionTime(change.element, change.element.start),
+              change.element.duration,
+              toCompositionTime(change.element, change.start),
+              change.duration,
+            ),
+        });
       }).catch((error) => {
         // Failed persist: revert the optimistic duration readout + live root
         // alongside the gesture owner's store rollback.

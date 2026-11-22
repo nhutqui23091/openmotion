@@ -375,7 +375,7 @@ export function useTimelineAssetDropOps({
   );
 
   const handleTimelineCompositionDrop = useCallback(
-    async (sourcePath: string, placement: Pick<TimelineElement, "start" | "track">) => {
+    async (sourcePath: string, placement: TimelineDropPlacement) => {
       if (isRecordingRef?.current) {
         showToast("Cannot edit timeline while recording", "error");
         return;
@@ -395,6 +395,7 @@ export function useTimelineAssetDropOps({
           sourcePath,
           start: placement.start,
           track: placement.track,
+          canvasPosition: placement.canvasPosition,
           writeFile: writeProjectFile,
           recordEdit,
           observeVersion: observeProjectFileVersion,

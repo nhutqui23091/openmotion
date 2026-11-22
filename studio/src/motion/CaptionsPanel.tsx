@@ -19,6 +19,7 @@ import { belongsToCaptionTrack, captionTrackCode, captionTrackText, useCaptionWo
 import { useCaptionTracks } from './useCaptionTracks';
 import { useCaptionSurfaceActive } from './useCaptionSurfaceActive';
 import { transcriptRequest, type TranscriptList } from './transcriptClient';
+import { useTranscriptServiceAvailable } from './useTranscriptServiceAvailable';
 import { gatewayRequest } from './gatewayClient';
 
 export function CaptionsPanel() {
@@ -28,6 +29,7 @@ export function CaptionsPanel() {
 function CaptionControls() {
   const { t } = useI18n(), shell = useStudioShellContext(), files = useFileManagerContext();
   const visible = useCaptionSurfaceActive('captions');
+  const transcriptServiceAvailable = useTranscriptServiceAvailable();
   const { timelineElements, refreshKey } = useStudioPlaybackContext();
   const { tracks, loading, failed, refresh, change, disabled } = useCaptionTracks(visible, refreshKey);
   const selection = useCaptionWorkspace(s => s.selections[shell.projectId]);
@@ -63,7 +65,7 @@ function CaptionControls() {
     catch { if (alive.current) setListFailed(true); }
   };
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  useEffect(() => { if (visible) void loadDocuments(); }, [visible, epoch]);
+  useEffect(() => { if (visible && transcriptServiceAvailable) void loadDocuments(); }, [visible, transcriptServiceAvailable, epoch]);
   useEffect(() => {
     if (tracks.some(track => track.id === pendingTrack.current)) pendingTrack.current = undefined;
     if (!loading && !failed && !pendingTrack.current && target !== 'new' && !tracks.some(track => track.id === target)) setTarget(tracks[0]?.id || 'new');

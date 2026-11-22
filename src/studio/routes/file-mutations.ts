@@ -1,3 +1,4 @@
+import { readCompositionDependencies } from '../engine/composition-dependencies.ts';
 import { randomUUID } from 'node:crypto';
 import { stampHfIdsInPlace } from '@hyperframes/parsers/hf-ids';
 import { and, eq } from 'drizzle-orm';
@@ -790,20 +791,31 @@ export function createStudioFileMutationsRoutes(
       sourcePath?: string;
       start?: number;
       track?: number;
+      expectedVersion?: string;
+      canvasPosition?: { left: number; top: number };
     } | null;
     if (!body?.sourcePath) {
       throw new CloudError('INVALID_ARGUMENT', 'Body must contain "sourcePath".', { status: 400, applied: false });
     }
     const childPath = normalizeSafeProjectPath(body.sourcePath);
     const parentFile = await deps.files.readTextFile(auth, projectId, filePath);
-    const childFile = await deps.files.readTextFile(auth, projectId, childPath);
-    if (!parentFile || !childFile) {
+    if (!parentFile) {
       return c.json({ error: 'Parent or child composition not found' }, 404);
     }
 
+    if (body.expectedVersion !== undefined && body.expectedVersion !== parentFile.version) {
+      return c.json({ error: 'file conflict', code: 'VERSION_MISMATCH', path: filePath }, 409);
+    }
+    const at = body.canvasPosition;
+    if (at !== undefined && (!at || !Number.isFinite(at.left) || !Number.isFinite(at.top))) {
+      return c.json({ error: 'Invalid canvas position' }, 400);
+    }
+    const graph = await readCompositionDependencies(filePath, childPath, path => deps.files.readTextFile(auth, projectId, path));
     const inserted = insertCompositionInMemory({
+      targetPath: filePath,
+      canvasPosition: at,
       parentSource: parentFile.content,
-      childSource: childFile.content,
+      childSource: graph.file.content,
       sourcePath: childPath,
       start: typeof body.start === 'number' ? body.start : 0,
       desiredTrack: typeof body.track === 'number' ? body.track : 0,
@@ -813,20 +825,23 @@ export function createStudioFileMutationsRoutes(
     }
 
     const writeToken = createWriteToken(c.req.header('x-hyperframes-write-token'));
+    const after = stampHfIdsInPlace(inserted.html);
     const committed = await deps.files.commitChanges(auth, {
       projectId,
-      ops: [{ op: 'upsert_text', path: filePath, content: inserted.html, stampHfIds: true }],
-      filePreconditions: [{ path: filePath, ifMatch: parentFile.version }],
+      ops: [{ op: 'upsert_text', path: filePath, content: after }],
+      filePreconditions: [{ path: filePath, ifMatch: parentFile.version }, ...graph.preconditions],
       source: 'studio',
       summary: `Inserted composition ${childPath}`,
       writeToken,
     });
 
-    const version = committed.versionsByPath[filePath] ?? formatVersionFromSha256(sha256Hex(inserted.html));
+    const version = committed.versionsByPath[filePath] ?? formatVersionFromSha256(sha256Hex(after));
     c.header('ETag', version);
     return c.json({
       ok: true,
       hostId: inserted.hostId,
+      before: parentFile.content,
+      after,
       track: inserted.track,
       duration: inserted.duration,
       path: filePath,

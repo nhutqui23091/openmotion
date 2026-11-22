@@ -340,6 +340,7 @@ function EditorShellBody({
               onSelectTimelineElement={onSelectTimelineElement}
               onPreviewBlockDrop={onPreviewBlockDrop}
               onAssetDrop={onAssetDrop}
+              onCompositionDrop={onCompositionDrop}
             />
           </div>
         </Dock.Panel>

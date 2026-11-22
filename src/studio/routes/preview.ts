@@ -16,6 +16,7 @@ import {
   PRESIGNED_REDIRECT_HEADERS,
   formatVersionFromSha256,
 } from '../etag.ts';
+import { PREVIEW_BRIDGE_PATH, PREVIEW_BRIDGE_SCRIPT, PREVIEW_BRIDGE_VERSION } from '../engine/preview-bridge.ts';
 import { PreviewBuildBusy, PreviewDocumentCache } from '../engine/preview-document-cache.ts';
 import { assertTenantScopedKey } from '../../infra/storage.ts';
 import { normalizeSafeProjectPath } from '../../services/project-files-service.ts';
@@ -119,6 +120,15 @@ export function createStudioPreviewRoutes(deps: DisklessStudioDeps): Hono<{ Vari
   const cache = new PreviewDocumentCache();
   const gsapBaseUrl = '/api/vendor/gsap/';
 
+  app.get(PREVIEW_BRIDGE_PATH, c => {
+    // A neighboring release may serve the request during rollout. Its script
+    // is protocol-compatible, but must never populate another build's cache key.
+    const exactBuild = c.req.query('v') === PREVIEW_BRIDGE_VERSION;
+    c.header('Cache-Control', exactBuild ? 'public, max-age=31536000, immutable' : 'no-store');
+    c.header('Content-Type', 'application/javascript; charset=utf-8');
+    return c.body(PREVIEW_BRIDGE_SCRIPT);
+  });
+
   async function documentResponse(c: Context<{ Variables: StudioVariables }>, compPath?: string) {
     const auth = await getAuthContext(c, deps, { scope: 'projects:read' });
     const projectId = c.req.param('id')!;
@@ -129,7 +139,7 @@ export function createStudioPreviewRoutes(deps: DisklessStudioDeps): Hono<{ Vari
     const origin = assetBase && new URL(assetBase).origin;
     const localBase = `/api/projects/${encodeURIComponent(projectId)}/preview/`;
     const variant = createHash('sha256').update(JSON.stringify([
-      auth.workspaceId, projectId, compPath, origin, capture, variables,
+      auth.workspaceId, projectId, compPath, origin, capture, variables, origin ? PREVIEW_BRIDGE_VERSION : null,
     ])).digest('hex');
     const tag = (revision: string) => previewEtag(documentSignature(revision, assetBase), {
       gsapBaseUrl, rawVariables: variant, capture, compPath,
@@ -152,6 +162,7 @@ export function createStudioPreviewRoutes(deps: DisklessStudioDeps): Hono<{ Vari
           : localBase;
         const options = {
           runtimeUrl: '/api/runtime.js', baseHref: templateBase, gsapBaseUrl, capture, variables,
+          bridgeOrigin: origin || undefined,
           cacheProjectScripts: !capture,
           fontCssCache: deps.hotTextCache?.getFontCss && deps.hotTextCache.setFontCss ? {
             getFontCss: deps.hotTextCache.getFontCss.bind(deps.hotTextCache),

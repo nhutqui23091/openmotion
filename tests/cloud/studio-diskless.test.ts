@@ -852,6 +852,36 @@ describe('Pure In-Memory Hyperframes Engines (Bundle, Lint, Info, Timeline)', ()
 });
 
 describe('Diskless Studio HTTP Routes (ETag, HEAD direct, 302 headers, DOM & GSAP mutations, Render, Media)', () => {
+  it('revalidates editor lint findings independently of unrelated source changes', async () => {
+    const env = createStudioTestEnv();
+    const { projectId } = await env.workspace.createProject(env.auth);
+    const write = (html: string) => env.files.commitChanges(env.auth, {
+      projectId, ops: [{ op: 'upsert_text', path: 'index.html', content: html }],
+    });
+    const html = '<html><body><div data-composition-id="main"><img src="missing.png"></div></body></html>';
+    await write(html);
+    const url = `/api/projects/${projectId}/lint`;
+    const view = url + '?view=findings';
+    const full = await (await env.studioApp.request(url)).json();
+    const response = await env.studioApp.request(view);
+    assert.equal(response.status, 200);
+    assert.ok(full.diagnostics.length > 0);
+    assert.deepEqual(await response.json(), {
+      findings: full.findings.map((finding: Record<string, unknown>) =>
+        Object.fromEntries(Object.entries(finding).filter(([key]) =>
+          ['severity', 'message', 'file', 'fixHint', 'elementId'].includes(key)))),
+    });
+    const validator = response.headers.get('etag');
+    assert.ok(validator);
+    const revalidate = () => env.studioApp.request(view, { headers: { 'If-None-Match': validator } });
+    await write(html + '<!-- edit -->');
+    assert.equal((await revalidate()).status, 304);
+    await write(html.replace('missing.png', 'other.png'));
+    const changed = await revalidate();
+    assert.equal(changed.status, 200);
+    assert.match(await changed.text(), /other\.png/);
+  });
+
   it('splits a legacy anonymous clip using its preview-stamped hf-id', async () => {
     const env = createStudioTestEnv();
     const { projectId } = await env.workspace.createProject(env.auth);
@@ -868,6 +898,41 @@ describe('Diskless Studio HTTP Routes (ETag, HEAD direct, 302 headers, DOM & GSA
     const result = await response.json() as { files: Array<{ splitCount: number; before: string }> };
     assert.equal(result.files[0]!.before, html);
     assert.equal(result.files[0]!.splitCount, 1);
+  });
+
+  it('inserts at the canvas drop point with durable history bytes and rejects cyclic or stale edits', async () => {
+    const env = createStudioTestEnv();
+    const { projectId } = await env.workspace.createProject(env.auth);
+    const scene = (id: string, children = '') => `<template><main data-composition-id="${id}" data-duration="4" data-width="200" data-height="100">${children}</main></template>`;
+    const parent = 'comps/a/parent.html', child = 'comps/b/child.html', indirect = 'nested/loop.html';
+    const files = {
+      [parent]: scene('parent', '<span data-start="0" data-duration="4" data-track-index="0"></span>'),
+      [child]: scene('child'), [indirect]: scene('loop', '<div data-composition-src="../comps/a/parent.html"></div>'),
+    };
+    await env.files.commitChanges(env.auth, { projectId, ops: Object.entries(files).map(([path, content]) => ({ op: 'upsert_text', path, content })) });
+    const insert = (target: string, source: string, version: string) => env.studioApp.request(
+      `/api/projects/${projectId}/file-mutations/insert-composition/${encodeURIComponent(target)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourcePath: source, expectedVersion: version, start: 2, track: 0, canvasPosition: { left: 160, top: 85 } }) });
+    const before = files[parent], initialVersion = fileContentVersion(before);
+    for (const cyclic of [parent, indirect]) {
+      const refused = await insert(parent, cyclic, initialVersion);
+      assert.equal(refused.status, 400);
+      assert.match(await refused.text(), /cycle/);
+    }
+    const saved = await insert(parent, child, initialVersion);
+    assert.equal(saved.status, 200);
+    const result = await saved.json();
+    assert.equal(result.before, before);
+    assert.equal(result.after, (await env.files.readTextFile(env.auth, projectId, parent))!.content);
+    assert.equal(result.version, fileContentVersion(result.after));
+    assert.equal(result.track, 1);
+    assert.match(result.after, /left: 60px; top: 35px/);
+    assert.match(result.after, /data-composition-src="\.\.\/b\/child\.html"/);
+    assert.match(result.after, /data-duration="6"/);
+    assert.equal((await insert(parent, child, initialVersion)).status, 409);
+    // The newly mounted child cannot concurrently acquire its own ancestor.
+    assert.equal((await insert(child, parent, fileContentVersion(files[child]))).status, 400);
   });
 
   it('applies Studio split targets atomically at the requested file version and returns stored history bytes', async () => {

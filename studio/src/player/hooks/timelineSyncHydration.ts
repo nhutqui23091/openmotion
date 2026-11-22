@@ -444,6 +444,15 @@ function applyRuntimeClipManifest(
 
 export function hydrateTimelineFromPreview(input: HydrateTimelineFromPreviewInput): void {
   const { iframe, adapter, syncTimelineElements } = input;
+  if (iframe) {
+    const preview = createPreviewAdapter({ iframe });
+    if (!preview.sameOrigin && preview.token) {
+      // A shadow frame's early manifest is intentionally ignored. Request its current rows
+      // after promoting that exact frame, when its authenticated response can be accepted.
+      preview.send("handshake", { timelineOnly: true });
+      return;
+    }
+  }
   try {
     const doc = safeContentDocument(iframe);
     const iframeWin = (iframe?.contentWindow as IframeWindow | null) ?? null;

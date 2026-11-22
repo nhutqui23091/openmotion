@@ -40,6 +40,7 @@ describe("commitTimelineCompositionInsertion", () => {
       sourcePath: "headline.html",
       start: 4,
       track: 2,
+      canvasPosition: { left: 345, top: 124 },
       writeFile,
       recordEdit,
       observeVersion,
@@ -53,6 +54,8 @@ describe("commitTimelineCompositionInsertion", () => {
       "/api/projects/launch%23demo/files/index.html",
       "/api/projects/launch%23demo/file-mutations/insert-composition/index.html",
     ]);
+    const body = JSON.parse((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(body).toMatchObject({ canvasPosition: { left: 345, top: 124 }, expectedVersion: "v1" });
     expect(recordEdit).toHaveBeenCalledOnce();
     expect(writeFile).not.toHaveBeenCalled();
     expect(observeVersion).toHaveBeenCalledWith("index.html", "v2");

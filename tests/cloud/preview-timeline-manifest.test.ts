@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { parseHTMLContent } from '@hyperframes/core/compiler/html-document';
-import { createPreviewBridgeScript } from '../../src/studio/engine/preview-bundler.ts';
+import { bridgeDocumentTags, PREVIEW_BRIDGE_SCRIPT } from '../../src/studio/engine/preview-bridge.ts';
 
 it('binds clips to authored files, including nested hosts and repeated scene-local IDs', () => {
   const document = parseHTMLContent(`<html><body><main data-composition-id="root">
@@ -25,7 +25,11 @@ it('binds clips to authored files, including nested hosts and repeated scene-loc
   const parent = { postMessage: (message: typeof messages[number]) => messages.push(message) };
   const listeners: Record<string, (event: unknown) => void> = {};
   const window = { parent, __clipManifest: { clips }, addEventListener: (type: string, cb: (event: unknown) => void) => { listeners[type] = cb; } };
-  runInNewContext(createPreviewBridgeScript('p', 'index.html', { 'index.html': 'v1', 'a.html': 'v2', 'b.html': 'v3' }), {
+  Object.defineProperty(document, 'currentScript', { value: {
+    getAttribute: () => JSON.stringify({ projectId: 'p', compositionPath: 'index.html',
+      sourceVersions: { 'index.html': 'v1', 'a.html': 'v2', 'b.html': 'v3' } }),
+  } });
+  runInNewContext(PREVIEW_BRIDGE_SCRIPT, {
     document, window, URL, location: { href: 'https://preview.test/api/projects/p/preview?pt=grant' }, setInterval() {},
   });
   listeners.message!({ source: parent, data: { source: 'openmotion-studio', version: 1,
@@ -42,4 +46,18 @@ it('binds clips to authored files, including nested hosts and repeated scene-loc
   assert.equal(rows[3]?.authored?.hfId, 'b-voice');
   assert.equal(rows[4]?.authored?.hfId, 'only-hf');
   assert.equal(rows[4]?.authored?.domId, undefined);
+});
+
+it('keeps authored filenames in inert per-document attributes, including markup-shaped names', () => {
+  const path = 'scenes/<x-tag>&"a.html';
+  const { script, preload } = bridgeDocumentTags('https://preview.example', 'own-project', path, { [path]: 'its-version' });
+  const document = parseHTMLContent('<html><head>' + preload + '</head><body>' + script + '</body></html>');
+  const tag = document.querySelector('script')!;
+  assert.equal(document.querySelectorAll('script').length, 1);
+  assert.equal(document.querySelector('x-tag'), null);
+  assert.equal(tag.getAttribute('src'), document.querySelector('link')!.getAttribute('href'));
+  assert.ok(!tag.getAttribute('src')!.includes('own-project'));
+  assert.deepEqual(JSON.parse(tag.getAttribute('data-openmotion-preview')!), {
+    projectId: 'own-project', compositionPath: path, sourceVersions: { [path]: 'its-version' },
+  });
 });

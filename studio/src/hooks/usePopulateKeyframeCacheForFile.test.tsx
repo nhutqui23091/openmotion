@@ -15,8 +15,8 @@ import {
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-function HookHost({ sourceFile = "index.html", version = 1 }) {
-  usePopulateKeyframeCacheForFile("demo", sourceFile, version);
+function HookHost({ sourceFile = "index.html", version = 1, projectId = "demo" }) {
+  usePopulateKeyframeCacheForFile(projectId, sourceFile, version);
   return null;
 }
 
@@ -189,6 +189,47 @@ describe("usePopulateKeyframeCacheForFile", () => {
 
     await render({ sourceFile: "index.html", version: 2 });
     expect(urls.length).toBe(loaded * 2);
+  });
+
+  it("reprojects loaded ASTs against new clip timing without reading unchanged source files", async () => {
+    const fetcher = vi.fn(async (url: RequestInfo | URL) => Response.json({ animations:
+      String(url).endsWith("/index.html") ? [{ id: "title-to", method: "to", targetSelector: "#title", position: 0, duration: 1,
+        properties: { x: 80, duration: 1 } }] : [] }));
+    vi.stubGlobal("fetch", fetcher);
+    const clip = { id: "title", domId: "title", tag: "div", start: 0, duration: 2, track: 1 };
+    usePlayerStore.setState({ elements: [...usePlayerStore.getState().elements, clip], keyframeCache: new Map(), gsapAnimations: new Map() });
+    container = document.createElement("div");
+    root = createRoot(container);
+    await act(async () => root!.render(<HookHost />));
+    const lastPercentage = () => usePlayerStore.getState().keyframeCache.get("index.html#title")?.keyframes.at(-1)?.percentage;
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(lastPercentage()).toBe(50);
+    await act(async () => usePlayerStore.setState(({ elements }) => ({
+      elements: [...elements.filter(el => el.id !== clip.id), { ...clip, duration: 4 }, { ...clip, id: "new", domId: "new" }],
+    })));
+    expect(lastPercentage()).toBe(25);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards a retired project's or source version's late response", async () => {
+    usePlayerStore.setState({ elements: [], keyframeCache: new Map(), gsapAnimations: new Map() });
+    const finish: ((response: Response) => void)[] = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(resolve => finish.push(resolve))));
+    container = document.createElement("div");
+    root = createRoot(container);
+    await act(async () => root!.render(<HookHost />));
+    await act(async () => root!.render(<HookHost version={2} />));
+    await act(async () => {
+      usePlayerStore.setState({ timelineProjectId: "other", previewBooted: true });
+      root!.render(<HookHost projectId="other" />);
+    });
+    expect(finish).toHaveLength(3);
+    const result = (id: string) => Response.json({ animations: [{
+      id, method: "to", targetSelector: "#title", position: 0, properties: { x: 80, duration: 1 },
+    }] });
+    await act(async () => finish[2](result("current")));
+    await act(async () => { finish[1](result("old-project")); finish[0](result("old-version")); });
+    expect(usePlayerStore.getState().gsapAnimations.get("index.html#title")?.[0].id).toBe("current");
   });
 
   it("asks again for a covered file whose first read failed", async () => {

@@ -101,24 +101,15 @@ async function requestParsedAnimations(
   }
 }
 
-/**
- * Read one composition file's tweens into the keyframe cache. Split out of the
- * hook so the effect can run it per file without re-nesting the whole body.
- */
+/** Project authored tweens onto the currently visible elements and their timing. */
 // fallow-ignore-next-line complexity
-export async function populateKeyframeCacheFromAst(
-  projectId: string,
-  sourceFile: string,
-  doc: Document | null | undefined,
-): Promise<boolean> {
-  const sf = projectCompositionPath(sourceFile, projectId);
-  if (!sf) return false;
-  const parsed = await fetchParsedAnimations(projectId, sf);
-  if (!parsed) return false;
+export function populateKeyframeCacheFromAst(
+  sf: string, animations: GsapAnimation[], doc: Document | null | undefined,
+): void {
   const { elements, domClipChildren } = usePlayerStore.getState();
   const mergedByElement = new Map<string, GsapKeyframesData<MergeableKeyframe>>();
   const sourceByElement = new Map<string, GsapAnimation[]>();
-  for (const anim of parsed.animations) {
+  for (const anim of animations) {
     if (anim.hasUnresolvedKeyframes) continue;
     if (isStaticPositionHold(anim)) continue;
     const kfData = anim.keyframes ?? synthesizeFlatTweenKeyframes(anim);
@@ -142,5 +133,4 @@ export async function populateKeyframeCacheFromAst(
     }
   }
   replaceKeyframeCacheForFile(sf, mergedByElement, sourceByElement);
-  return true;
 }

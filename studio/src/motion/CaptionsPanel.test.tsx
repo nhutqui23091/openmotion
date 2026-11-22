@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
+import { setCachedCloudDisklessMode } from '../utils/cloudRuntime';
 import { I18nProvider } from '../i18n/I18n';
 import { CaptionsPanel } from './CaptionsPanel';
 import { TimelineCaptionsMenu } from './TimelineCaptionsMenu';
@@ -47,7 +48,7 @@ beforeEach(() => {
   useCaptionWorkspace.setState({ selections: {}, requests: {}, epoch: 0 }); useDockLayoutStore.setState({ visiblePanels: new Set(['captions', 'timeline']) }); usePlayerStore.setState({ selectedElementId: null });
   const host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
-afterEach(() => { act(() => root.unmount()); document.body.innerHTML = ''; vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => { act(() => root.unmount()); setCachedCloudDisklessMode(null); document.body.innerHTML = ''; vi.useRealTimers(); vi.restoreAllMocks(); });
 it('clicking a style immediately patches only appearance and preserves hidden state and native edits', async () => {
   state.tracks[0].settings.visible = false;
   await render(); await act(async () => button('Paper card').click());
@@ -238,4 +239,23 @@ it('a rejected global caption toggle leaves the saved state and reports a toast'
   await render(<TimelineCaptionsMenu />); state.failWrite = true;
   await act(async () => button('Caption visibility').click()); await act(async () => button('Off').click());
   expect(button('Caption visibility').textContent).toBe('On'); expect(state.toast).toHaveBeenCalledWith('Version changed', 'error');
+});
+
+it('keeps existing cloud tracks editable and imports SRT without discovering speech models or documents', async () => {
+  setCachedCloudDisklessMode(true);
+  await render();
+  expect(state.calls.map(call => call.command)).toEqual(['caption_tracks']);
+  await act(async () => button('Paper card').click());
+  expect(button('Paper card').getAttribute('aria-pressed')).toBe('true');
+
+  await act(async () => button('Auto captions').click());
+  expect(document.querySelector('[data-deferred-p2]')?.textContent).toContain('import SRT or VTT');
+  expect(button('Import SRT / VTT').disabled).toBe(false);
+  expect(button('Connect speech model')).toBeUndefined();
+  const subtitles = '1\n00:00:00,000 --> 00:00:02,000\nCloud subtitle';
+  const input = document.querySelector<HTMLInputElement>('input[accept=".srt,.vtt"]')!;
+  Object.defineProperty(input, 'files', { value: [new File([subtitles], 'captions.srt')] });
+  await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
+  expect(state.calls).toContainEqual(expect.objectContaining({ command: 'caption_add', subtitles }));
+  expect(state.calls.every(call => call.command.startsWith('caption_'))).toBe(true);
 });

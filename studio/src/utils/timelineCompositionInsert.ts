@@ -23,6 +23,7 @@ async function insertTimelineComposition(input: {
   sourcePath: string;
   start: number;
   track: number;
+  canvasPosition?: { left: number; top: number };
 }): Promise<TimelineCompositionInsertionResult> {
   const current = await studioApiFetch(
     buildProjectApiPath(input.projectId, `/files/${encodeURIComponent(input.targetPath)}`),
@@ -45,6 +46,7 @@ async function insertTimelineComposition(input: {
         sourcePath: input.sourcePath,
         start: input.start,
         track: input.track,
+        canvasPosition: input.canvasPosition,
         expectedVersion: snapshot.version,
       }),
     },
@@ -61,6 +63,7 @@ export async function commitTimelineCompositionInsertion(input: {
   sourcePath: string;
   start: number;
   track: number;
+  canvasPosition?: { left: number; top: number };
   writeFile: (path: string, content: string, expectedContent?: string) => Promise<void>;
   recordEdit: (entry: RecordEditInput) => Promise<void>;
   observeVersion?: (path: string, version: string | null) => void;

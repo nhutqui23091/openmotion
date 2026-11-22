@@ -172,6 +172,7 @@ export function useTimelineClipTimingEditing({
           finishClipTimingFallback({
             iframe: previewIframeRef.current,
             reloadPreview,
+            invalidateGsapCache,
             projectId: projectIdRef.current,
             targetPath,
             domId: element.domId,
@@ -181,7 +182,7 @@ export function useTimelineClipTimingEditing({
             writeProjectFile,
             edit: { kind: "shift", delta: updates.start - element.start },
             sdkGsap,
-          }).finally(() => invalidateGsapCache?.());
+          });
         const moveFallback = () =>
           enqueueEdit(element, "Move timeline clip", buildMovePatches, step).then(() =>
             finishMoveGsapSync(),
@@ -279,6 +280,7 @@ export function useTimelineClipTimingEditing({
         finishClipTimingFallback({
           iframe: previewIframeRef.current,
           reloadPreview,
+          invalidateGsapCache,
           projectId: projectIdRef.current,
           targetPath,
           domId: element.domId,
@@ -292,7 +294,7 @@ export function useTimelineClipTimingEditing({
             to: { start: toCompositionTime(element, updates.start), duration: updates.duration },
           },
           sdkGsap,
-        }).finally(() => invalidateGsapCache?.());
+        });
       const resizeFallback = () =>
         enqueueEdit(element, "Resize timeline clip", buildResizePatches, step).then(() =>
           finishResizeGsapSync(),

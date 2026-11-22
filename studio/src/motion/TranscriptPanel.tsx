@@ -20,6 +20,7 @@ import { TranscriptEditor } from './TranscriptEditor';
 import { TranscriptWorkflowBrief } from './TranscriptWorkflowBrief';
 import { useCaptionWorkspace } from './captionWorkspace';
 import { useCaptionSurfaceActive } from './useCaptionSurfaceActive';
+import { useTranscriptServiceAvailable } from './useTranscriptServiceAvailable';
 import { isDeferredP2Error } from './p2Deferred';
 
 type Source = { path: string; sha256: string; bytes: number };
@@ -37,7 +38,9 @@ function TranscriptContent({ projectId, onAddToTimeline }: { projectId: string; 
   const [brief, setBrief] = useState(false), [briefVisited, setBriefVisited] = useState(false), [view, setView] = useState<TranscriptView>('segments');
   const [settings, setSettings] = useState(false), [editorBusy, setEditorBusy] = useState(false);
   const selection = useCaptionWorkspace(s => s.selections[projectId]);
-  const visible = useCaptionSurfaceActive('transcript');
+  const transcriptServiceAvailable = useTranscriptServiceAvailable();
+  const visible = useCaptionSurfaceActive('transcript') && transcriptServiceAvailable;
+  const showDeferred = !transcriptServiceAvailable || deferred;
   const epoch = useCaptionWorkspace(s => s.epoch);
   const selectedId = usePlayerStore(s => s.selectedElementId);
   const elements = usePlayerStore(s => s.elements);
@@ -188,13 +191,15 @@ function TranscriptContent({ projectId, onAddToTimeline }: { projectId: string; 
       const result = await transcriptRequest<{ document: TranscriptDocument }>({ command: 'import', projectId, sourcePath: source, requestId: crypto.randomUUID(), subtitles: await file.text() });
       if (alive.current) { setDoc(result.document); await refresh(); }
     }); }} />
-    {doc ? <TranscriptEditor key={doc.id} document={doc} busy={disabled} setDocument={setDoc} onDirty={setDirty} onWorking={setEditorBusy} refresh={refresh} sourceBar={sourceBar} view={view} onView={setView} onImport={importSubtitles} /> : <>
-      <TranscriptToolbar view={view} onView={setView} onImport={importSubtitles} onStyles={openStyles} busy={disabled || loading} />
-      {sourceBar}
+    {doc && !showDeferred ? <TranscriptEditor key={doc.id} document={doc} busy={disabled} setDocument={setDoc} onDirty={setDirty} onWorking={setEditorBusy} refresh={refresh} sourceBar={sourceBar} view={view} onView={setView} onImport={importSubtitles} /> : <>
+      {!showDeferred && <>
+        <TranscriptToolbar view={view} onView={setView} onImport={importSubtitles} onStyles={openStyles} busy={disabled || loading} />
+        {sourceBar}
+      </>}
       <div className="flex min-h-0 flex-1 overflow-y-auto" data-testid="transcript-reading-area">
-        {loading ? <div className="flex w-full flex-col gap-4 p-4" aria-label={t('Loading transcript')}><Skeleton style={{ width: '65%', height: 16 }} /><Skeleton style={{ width: '100%', height: 64 }} /><Skeleton style={{ width: '85%', height: 64 }} /></div> : <div className="m-auto flex w-full max-w-80 flex-col items-center gap-3 px-5 py-8 text-center">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-hover text-text-3"><RemixIcon name={deferred ? 'time-line' : failed || latest?.state === 'failed' ? 'error-warning-line' : 'mic-line'} size={22} /></span>
-          {deferred ? <>
+        {loading && !showDeferred ? <div className="flex w-full flex-col gap-4 p-4" aria-label={t('Loading transcript')}><Skeleton style={{ width: '65%', height: 16 }} /><Skeleton style={{ width: '100%', height: 64 }} /><Skeleton style={{ width: '85%', height: 64 }} /></div> : <div className="m-auto flex w-full max-w-80 flex-col items-center gap-3 px-5 py-8 text-center">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-hover text-text-3"><RemixIcon name={showDeferred ? 'time-line' : failed || latest?.state === 'failed' ? 'error-warning-line' : 'mic-line'} size={22} /></span>
+          {showDeferred ? <>
             <h2 className="text-step-13 font-semibold" role="status" data-deferred-p2="true">{t('Cloud speech recognition is coming in Phase 2')}</h2>
             <p className="text-step-12 leading-relaxed text-text-3">{t('Automated speech transcription jobs are scheduled for Phase 2. Caption styling remains available in the Captions panel.')}</p>
             <Button size="sm" variant="secondary" onClick={openStyles}>{t('Open Captions')}</Button>

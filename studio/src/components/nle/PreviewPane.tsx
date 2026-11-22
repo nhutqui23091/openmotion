@@ -46,7 +46,12 @@ function deselectIfPointerOutsideFrame(
   if (outside) onDeselect?.(null);
 }
 
+function canvasPlacement(position: { left: number; top: number }): TimelineDropPlacement {
+  return { start: usePlayerStore.getState().currentTime, track: 0, newTrack: "top", canvasPosition: position };
+}
+
 export interface PreviewPaneProps {
+  onCompositionDrop?: (path: string, placement: TimelineDropPlacement) => void;
   onAssetDrop?: (assetPath: string, placement: TimelineDropPlacement, duration?: number) => void;
   portrait?: boolean;
   /** Slot for overlays rendered on top of the preview (cursors, highlights, etc.) */
@@ -65,6 +70,7 @@ export function PreviewPane({
   onSelectTimelineElement,
   onPreviewBlockDrop,
   onAssetDrop,
+  onCompositionDrop,
 }: PreviewPaneProps) {
   const mvp = useMvpEditor();
   const { t } = useI18n(), toast = useToast();
@@ -97,9 +103,10 @@ export function PreviewPane({
     stageRefForDrop.current = ref.current;
   }, []);
 
-  const handleCanvasAssetDrop = useCallback((path: string, duration: number | undefined, position: { left: number; top: number }) => {
-    onAssetDrop?.(path, { start: usePlayerStore.getState().currentTime, track: 0, newTrack: "top", canvasPosition: position }, duration);
-  }, [onAssetDrop]);
+  const handleCanvasAssetDrop = useCallback((path: string, duration: number | undefined, position: { left: number; top: number }) =>
+    onAssetDrop?.(path, canvasPlacement(position), duration), [onAssetDrop]);
+  const handleCanvasCompositionDrop = useCallback((path: string, position: { left: number; top: number }) =>
+    onCompositionDrop?.(path, canvasPlacement(position)), [onCompositionDrop]);
   const {
     captureDrag,
     isDragOver: previewDragOver,
@@ -113,6 +120,7 @@ export function PreviewPane({
     stageRef: stageRefForDrop as React.RefObject<HTMLDivElement | null>,
     onBlockDrop: onPreviewBlockDrop,
     onAssetDrop: onAssetDrop && !timelineDisabled ? handleCanvasAssetDrop : undefined,
+    onCompositionDrop: onCompositionDrop && !timelineDisabled ? handleCanvasCompositionDrop : undefined,
   });
 
   // Preview-only fullscreen: fullscreen targets THIS pane's container, so the

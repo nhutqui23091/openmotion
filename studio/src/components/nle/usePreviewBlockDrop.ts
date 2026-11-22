@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { parseTimelineAssetPayload, TIMELINE_ASSET_MIME, TIMELINE_BLOCK_MIME } from "../../utils/timelineAssetDrop";
+import { parseTimelineCompositionPayload, TIMELINE_COMPOSITION_MIME } from "../../utils/timelineCompositionDrop";
 import { usePreviewReadOnly } from "../editor/previewReadOnlyContext";
 
 interface UsePreviewBlockDropOptions {
@@ -12,6 +13,7 @@ interface UsePreviewBlockDropOptions {
   compositionSize?: { width: number; height: number } | null;
   stageRef: RefObject<HTMLDivElement | null>;
   onAssetDrop?: (path: string, duration: number | undefined, position: { left: number; top: number }) => void;
+  onCompositionDrop?: (sourcePath: string, position: { left: number; top: number }) => void;
   onBlockDrop?: (blockName: string, position: { left: number; top: number }) => void;
 }
 
@@ -71,13 +73,16 @@ export function usePreviewBlockDrop({
   stageRef,
   onBlockDrop: onBlockDropProp,
   onAssetDrop: onAssetDropProp,
+  onCompositionDrop: onCompositionDropProp,
 }: UsePreviewBlockDropOptions) {
   const readOnly = usePreviewReadOnly();
   const onBlockDrop = readOnly ? undefined : onBlockDropProp;
   const onAssetDrop = readOnly ? undefined : onAssetDropProp;
+  const onCompositionDrop = readOnly ? undefined : onCompositionDropProp;
   const accepts = useCallback((types: readonly string[]) =>
     Boolean((onAssetDrop && types.includes(TIMELINE_ASSET_MIME)) ||
-      (onBlockDrop && types.includes(TIMELINE_BLOCK_MIME))), [onAssetDrop, onBlockDrop]);
+      (onCompositionDrop && types.includes(TIMELINE_COMPOSITION_MIME)) ||
+      (onBlockDrop && types.includes(TIMELINE_BLOCK_MIME))), [onAssetDrop, onBlockDrop, onCompositionDrop]);
   const [captureDrag, setCaptureDrag] = useState(false);
   useEffect(() => {
     // Native drag events inside an iframe do not bubble to the surrounding Studio document.
@@ -141,10 +146,12 @@ export function usePreviewBlockDrop({
 
       const asset = parseTimelineAssetPayload(e.dataTransfer.getData(TIMELINE_ASSET_MIME));
       if (asset && onAssetDrop) return onAssetDrop(asset.path, asset.duration, pos);
+      const composition = parseTimelineCompositionPayload(e.dataTransfer.getData(TIMELINE_COMPOSITION_MIME));
+      if (composition && onCompositionDrop) return onCompositionDrop(composition.sourcePath, pos);
       const block = parseBlockPayload(e.dataTransfer.getData(TIMELINE_BLOCK_MIME));
       if (block) onBlockDrop?.(block.name, centerBlockAtPosition(pos, block));
     },
-    [accepts, onAssetDrop, onBlockDrop, stageRef, compositionSize, portrait],
+    [accepts, onAssetDrop, onBlockDrop, onCompositionDrop, stageRef, compositionSize, portrait],
   );
 
   return { captureDrag, isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop };

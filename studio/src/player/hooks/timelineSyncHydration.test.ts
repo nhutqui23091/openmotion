@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  hydrateTimelineFromPreview,
   collectSubCompositionDomChildren,
   collectSubCompositionHostState,
   buildTimelineElementsFromClips,
@@ -146,4 +147,33 @@ describe("collectSubCompositionHostState", () => {
 
     expect(state.size).toBe(0);
   });
+});
+
+it("requests the promoted isolated frame's current manifest instead of keeping the retired rows", () => {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("src", "https://preview.example/api/projects/p/preview?pt=test-lease");
+  const postMessage = vi.fn();
+  Object.defineProperty(iframe, "contentWindow", { value: { postMessage } });
+  const processTimelineMessage = vi.fn();
+  hydrateTimelineFromPreview({
+    iframe,
+    adapter: {
+      play: vi.fn(),
+      pause: vi.fn(),
+      seek: vi.fn(),
+      getTime: () => 0,
+      getDuration: () => 2,
+      isPlaying: () => false,
+    },
+    processTimelineMessage,
+    enrichMissingCompositions: vi.fn(),
+    applyPreviewAudioState: vi.fn(),
+    attachIframeShortcutListeners: vi.fn(),
+    syncTimelineElements: vi.fn(),
+  });
+  expect(postMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ type: "handshake", timelineOnly: true, projectId: "p", token: "test-lease" }),
+    "https://preview.example",
+  );
+  expect(processTimelineMessage).not.toHaveBeenCalled();
 });

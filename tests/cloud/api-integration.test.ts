@@ -1429,6 +1429,19 @@ describe('Cloud API Entrypoint — Static Assets, Read-Only GSAP & API 404 vs SP
 // ---------------------------------------------------------------------------
 
 describe('Cloud API Entrypoint — Studio UI Wiring Parity (/preview/open, WorkspaceStatus, /phase1/call, /generations, /tracking/preferences)', () => {
+  it('reports deferred transcript discovery before requiring a composition', async () => {
+    const { app } = createApiFixture({ config: { AUTH_MODE: 'dev' } });
+    for (const transcript of [{ command: 'models' }, { command: 'sources', projectId: randomUUID() }]) {
+      const response = await app.request('/motion-api/phase1/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'openmotion_assets_use', arguments: { action: 'transcript', transcript } }),
+      });
+      assert.equal(response.status, 501);
+      assert.equal((await response.json()).code, 'FEATURE_DEFERRED_P2');
+    }
+  });
+
   it('switches editor routes without loading messages, export jobs or a second copy of the target', async t => {
     const { app, services, pgClient, config } = createApiFixture({ config: { AUTH_MODE: 'dev' } });
     const post = (path: string, body?: Record<string, string>) => app.request('/motion-api/' + path, {
@@ -2189,6 +2202,20 @@ describe('Cloud API Entrypoint — Unified Config & Cookie-less Preview Subdomai
     const assetUrl = new URL('index.html', base);
     assert.equal(assetUrl.origin, minted.previewOrigin);
     const previewHeaders = { Host: assetUrl.host };
+    const bridgeSrc = previewHtml.match(/<script src="([^"]+)" data-openmotion-preview=/)?.[1];
+    assert.ok(bridgeSrc);
+    const bridgeUrl = new URL(bridgeSrc);
+    assert.equal(bridgeUrl.origin, minted.previewOrigin);
+    assert.deepEqual([...bridgeUrl.searchParams.keys()], ['v']);
+    const bridgeAsset = await app.request(bridgeSrc, { headers: previewHeaders });
+    assert.equal(bridgeAsset.status, 200);
+    assert.match(bridgeAsset.headers.get('cache-control') ?? '', /immutable/);
+    const script = await bridgeAsset.text();
+    assert.equal(createHash('sha256').update(script).digest('hex'), bridgeUrl.searchParams.get('v'));
+    assert.ok(!script.includes(minted.token) && !script.includes(projectA));
+    bridgeUrl.searchParams.set('v', 'retired');
+    assert.equal((await app.request(bridgeUrl.href, { headers: previewHeaders })).headers.get('cache-control'), 'no-store');
+
     const assetResponse = await app.request(assetUrl.href, { headers: previewHeaders });
     assert.equal(assetResponse.status, 200);
     assert.match(await assetResponse.text(), /Project Alpha/);
@@ -2200,7 +2227,7 @@ describe('Cloud API Entrypoint — Unified Config & Cookie-less Preview Subdomai
     const sameOriginHtml = await app.request(`/api/projects/${projectA}/preview`, {
       headers: { Cookie: cookieHeader },
     });
-    assert.ok(!(await sameOriginHtml.text()).includes('~assets/'));
+    assert.doesNotMatch(await sameOriginHtml.text(), /~assets\/|data-openmotion-preview|openmotion-preview-bridge/);
     assert.match(sameOriginHtml.headers.get('content-security-policy') ?? '', /sandbox/);
     const mainAsset = await app.request(`/api/projects/${projectA}/preview/index.html`, {
       headers: { Cookie: cookieHeader },

@@ -86,14 +86,16 @@ describe("finishClipTimingFallback failure domains", () => {
       after: "<after>",
     });
     const reloadPreview = vi.fn();
+    const invalidateGsapCache = vi.fn();
     const foldError = new Error("history fold failed");
     const recordEdit = vi.fn(async () => {
       throw foldError;
     });
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await finishClipTimingFallback(clipFallbackInput({ reloadPreview, recordEdit }));
+    await finishClipTimingFallback({ ...clipFallbackInput({ reloadPreview, recordEdit }), invalidateGsapCache });
 
+    expect(invalidateGsapCache).toHaveBeenCalledTimes(1);
     expect(recordEdit).toHaveBeenCalledTimes(1);
     expect(reloadPreview).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("GSAP"), foldError);
@@ -109,11 +111,13 @@ describe("finishClipTimingFallback failure domains", () => {
   it("reloads when the mutation endpoint fails after dispatch", async () => {
     stubFetch(["<before>"], new Error("mutation blew up"));
     const reloadPreview = vi.fn();
+    const invalidateGsapCache = vi.fn();
     const recordEdit = vi.fn(async () => {});
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await finishClipTimingFallback(clipFallbackInput({ reloadPreview, recordEdit }));
+    await finishClipTimingFallback({ ...clipFallbackInput({ reloadPreview, recordEdit }), invalidateGsapCache });
 
+    expect(invalidateGsapCache).toHaveBeenCalledTimes(0);
     expect(recordEdit).not.toHaveBeenCalled();
     expect(reloadPreview).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledTimes(1);
@@ -341,13 +345,16 @@ describe("nothing-to-rewrite timing edits rebind in place (no script re-executio
     const { iframe, contentWindow, container, scriptEls, appendedScripts } =
       buildLivePreviewIframe();
     const reloadPreview = vi.fn();
+    const invalidateGsapCache = vi.fn();
 
     await finishClipTimingFallback({
       ...clipFallbackInput({ reloadPreview, recordEdit: vi.fn(async () => {}) }),
       iframe,
       domId: undefined,
+      invalidateGsapCache,
     });
 
+    expect(invalidateGsapCache).toHaveBeenCalledTimes(1);
     expect(reloadPreview).not.toHaveBeenCalled();
     expect(contentWindow.__hfForceTimelineRebind).toHaveBeenCalledTimes(1);
     expect(contentWindow.__player.seek).toHaveBeenCalledTimes(1);

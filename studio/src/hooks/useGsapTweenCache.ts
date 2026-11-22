@@ -276,49 +276,51 @@ export function usePopulateKeyframeCacheForFile(
   const domClipChildrenKey = usePlayerStore((s) =>
     s.domClipChildren.map((c) => `${c.id}<${c.hostId}`).join("|"),
   );
-  const loadedRef = useRef<{ dataKey: string; files: Set<string> }>({
-    dataKey: "",
-    files: new Set(),
-  });
-
+  // Reads belong to the authored source generation. The projection also depends
+  // on which elements and sub-composition children the timeline currently has.
+  const source = useRef<{
+    projectId: string | null;
+    version: number;
+    fresh: boolean;
+    reads: Map<string, Promise<GsapAnimation[] | null>>;
+  } | null>(null);
+  const projected = useMemo(() => new Set<string>(),
+    [projectId, version, elementCount, domClipChildrenKey, compositionSrcKey]);
+  const previousProjection = useRef<Set<string> | null>(null);
   const runtimeScanDoneRef = useRef("");
 
   useEffect(() => {
-    const dataKey = `kf-cache:${projectId}:${version}:${elementCount}:${domClipChildrenKey}:${compositionSrcKey}`;
+    if (source.current?.projectId !== projectId || source.current?.version !== version) {
+      // A request started before a write (or before leaving and reopening a
+      // project) must not satisfy the new generation, even if still in flight.
+      source.current = { projectId, version, fresh: source.current !== null, reads: new Map() };
+    }
     if (!projectId) return;
-
-    // The active file first: it owns the selection, and each file clears only
-    // its own cache entries, so the order just decides who writes the bare
-    // `id` alias last.
-    const files = Array.from(
-      new Set(
-        [sourceFile, ...(compositionSrcKey ? compositionSrcKey.split("|") : [])]
-          .map((source) => projectCompositionPath(source, projectId))
-          .filter((source): source is string => source !== null),
-      ),
-    );
-    const sameData = loadedRef.current.dataKey === dataKey;
-    const stale = sameData ? files.filter((sf) => !loadedRef.current.files.has(sf)) : files;
-    const covered = sameData ? new Set([...loadedRef.current.files, ...files]) : new Set(files);
-    loadedRef.current = { dataKey, files: covered };
-    // Everything the previous scan cached for a file this one no longer covers
-    // (the composition just switched away from) has no owner left to clear it.
-    if (!sameData) pruneKeyframeCacheToFiles(files);
-    if (stale.length === 0) return;
-    runtimeScanDoneRef.current = "";
-    const doc = iframeRef?.current?.contentDocument;
-    for (const sf of stale) {
-      void populateKeyframeCacheFromAst(projectId, sf, doc).then((loaded) => {
-        if (!loaded && loadedRef.current.dataKey === dataKey) loadedRef.current.files.delete(sf);
+    const { reads, fresh } = source.current;
+    const files = [...new Set([sourceFile, ...(compositionSrcKey ? compositionSrcKey.split("|") : [])]
+      .map(path => projectCompositionPath(path, projectId)).filter((path): path is string => path !== null))];
+    if (previousProjection.current !== projected) {
+      pruneKeyframeCacheToFiles(files);
+      previousProjection.current = projected;
+    }
+    let active = true;
+    for (const path of files) {
+      if (projected.has(path)) continue;
+      runtimeScanDoneRef.current = "";
+      const read = reads.get(path) ?? fetchParsedAnimations(projectId, path, { fresh })
+        .then(parsed => parsed?.animations ?? null);
+      reads.set(path, read);
+      void read.then(animations => {
+        if (!animations) {
+          if (reads.get(path) === read) reads.delete(path);
+        } else if (active) {
+          populateKeyframeCacheFromAst(path, animations, iframeRef?.current?.contentDocument);
+          projected.add(path);
+        }
       });
     }
-    // elementCount is in the deps because new timeline elements (e.g. after a
-    // sub-composition expand) need their keyframe cache populated immediately;
-    // without it the effect won't re-run when elements appear/disappear.
-    // iframeRef is read for DOM selector resolution but intentionally not a dep
-    // (it's a stable ref; the separate runtime-scan effect owns iframe timing).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, sourceFile, version, elementCount, domClipChildrenKey, compositionSrcKey]);
+    return () => { active = false; };
+  }, [projectId, sourceFile, version, compositionSrcKey, projected, iframeRef]);
 
   // Separate effect for runtime keyframe discovery — polls until the iframe
   // has loaded GSAP timelines, independent of the AST fetch lifecycle.

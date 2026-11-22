@@ -13,6 +13,7 @@ import { useTranscriptRecorder } from './useTranscriptRecorder';
 import { downloadTranscript, transcriptRequest } from './transcriptClient';
 import { useCaptionWorkspace } from './captionWorkspace';
 import { useOptionalWorkspaceChrome } from './WorkspaceChromeContext';
+import { useTranscriptServiceAvailable } from './useTranscriptServiceAvailable';
 import type { DirectoryModel } from '../../../shared/provider-directory';
 
 export function TimelineCaptionActions({ onAddToTimeline }: { onAddToTimeline: (path: string) => Promise<boolean> }) {
@@ -23,6 +24,7 @@ function RecordingActions({ onAddToTimeline }: { onAddToTimeline: (path: string)
   const { t } = useI18n(), shell = useStudioShellContext(), files = useFileManagerContext(), chrome = useOptionalWorkspaceChrome();
   const error = useCallback((message: string) => shell.showToast(t(message), 'error'), [shell.showToast, t]);
   const recorder = useTranscriptRecorder(error, shell.projectId);
+  const transcriptServiceAvailable = useTranscriptServiceAvailable();
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [url, setUrl] = useState(''), [playing, setPlaying] = useState(false);
   const musicInput = useRef<HTMLInputElement>(null);
   const media = useRef<HTMLAudioElement>(null), alive = useRef(true), locked = useRef(false);
@@ -39,7 +41,7 @@ function RecordingActions({ onAddToTimeline }: { onAddToTimeline: (path: string)
     return () => URL.revokeObjectURL(next);
   }, [recorder.file]);
   useEffect(() => { if (!open) media.current?.pause(); }, [open]);
-  useEffect(() => { if (!open) return; let cancelled = false; void transcriptRequest<{ models: DirectoryModel[]; defaultModel: string | null }>({ command: 'models' }).then(result => { if (cancelled) return; const selected = result.models.find(m => m.id === result.defaultModel) || result.models[0]; setModel(selected?.id || ''); setModelLabel(selected?.label || ''); }).catch(() => { if (!cancelled) setModel(''); }); return () => { cancelled = true; }; }, [open]);
+  useEffect(() => { if (!open || !transcriptServiceAvailable) return; let cancelled = false; void transcriptRequest<{ models: DirectoryModel[]; defaultModel: string | null }>({ command: 'models' }).then(result => { if (cancelled) return; const selected = result.models.find(m => m.id === result.defaultModel) || result.models[0]; setModel(selected?.id || ''); setModelLabel(selected?.label || ''); }).catch(() => { if (!cancelled) setModel(''); }); return () => { cancelled = true; }; }, [open, transcriptServiceAvailable]);
   async function add(transcribe = false) {
     if (!recorder.file || locked.current || disabled) return;
     if (transcribe && !model) { chrome?.openModelSettings(); return; }
@@ -97,9 +99,9 @@ function RecordingActions({ onAddToTimeline }: { onAddToTimeline: (path: string)
         </> : recorder.file ? <>
           <audio ref={media} src={url} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
           <Button size="sm" disabled={busy} onClick={() => { if (playing) media.current?.pause(); else void media.current?.play().catch(() => error('Could not play the source audio')); }}><RemixIcon name={playing ? 'pause-fill' : 'play-fill'} size={16} />{t(playing ? 'Pause recording' : 'Listen to recording')}</Button>
-          <Button variant="primary" disabled={busy || disabled} onClick={() => void add(true)}>{t(busy ? 'Adding recording…' : model ? 'Add and transcribe' : 'Connect speech model')}</Button>
-          {model && <p className="text-step-11 text-text-3">{modelLabel} · {t('Audio is sent to your selected provider. Provider charges may apply.')}</p>}
-          <Button size="sm" disabled={busy || disabled} onClick={() => void add()}>{t('Add recording at playhead')}</Button>
+          {transcriptServiceAvailable && <Button variant="primary" disabled={busy || disabled} onClick={() => void add(true)}>{t(busy ? 'Adding recording…' : model ? 'Add and transcribe' : 'Connect speech model')}</Button>}
+          {transcriptServiceAvailable && model && <p className="text-step-11 text-text-3">{modelLabel} · {t('Audio is sent to your selected provider. Provider charges may apply.')}</p>}
+          <Button size="sm" variant={transcriptServiceAvailable ? 'secondary' : 'primary'} disabled={busy || disabled} onClick={() => void add()}>{t('Add recording at playhead')}</Button>
           <div className="flex gap-2"><Button variant="ghost" size="sm" disabled={busy} onClick={() => { media.current?.pause(); recorder.clear(); }}>{t('Record again')}</Button><Button variant="ghost" size="sm" onClick={() => downloadTranscript(recorder.file!, recorder.file!.name, recorder.file!.type)}>{t('Download recording')}</Button></div>
         </> : <Button variant="primary" disabled={disabled} onClick={() => { usePlayerStore.getState().setIsPlaying(false); void recorder.start(); }}>{t('Start recording')}</Button>}
       </div>

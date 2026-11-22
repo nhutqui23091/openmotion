@@ -100,6 +100,13 @@ export function createStudioSystemRoutes(deps: StudioSystemRouteDeps): Hono<{ Va
     const result = await lintProjectInMemory(virtual);
     c.header('Cache-Control', 'private, no-cache');
     c.header('Vary', 'Cookie, Authorization');
+    if (c.req.query('view') === 'findings') {
+      // Keep the UI validator stable across edits that preserve the visible findings.
+      const findings = result.findings.map(({ severity, message, file, fixHint, elementId }) => ({
+        severity, message, file, fixHint, elementId,
+      }));
+      return c.json({ findings });
+    }
     return c.json(result);
   });
 

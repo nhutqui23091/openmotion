@@ -26,7 +26,7 @@ function parseFinding(f: RawFinding): LintFinding & { elementId?: string; file?:
 }
 
 async function fetchLintFindings(projectId: string) {
-  const res = await studioApiFetch(buildProjectApiPath(projectId, `/lint`));
+  const res = await studioApiFetch(buildProjectApiPath(projectId, "/lint?view=findings"));
   const data = await res.json();
   return ((data.findings ?? []) as RawFinding[]).map(parseFinding);
 }
