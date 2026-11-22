@@ -1,3 +1,4 @@
+import { slug } from './core.ts';
 const legacyAssetActions = ['list', 'get', 'import', 'update', 'generate', 'jobs', 'status', 'cancel', 'retry_save', 'resume', 'import_to_project'] as const;
 export const assetActions = [...legacyAssetActions, 'read', 'brand_kit', 'transcript', 'scenario'] as const;
 const actionSets = {
@@ -15,7 +16,12 @@ const actionSets = {
   openmotion_design_comments: ['list', 'create', 'update', 'delete'],
 } as const;
 const targets = ['project', 'templates', 'providers'] as const;
-export const toolDimensions = { action: [...new Set(Object.values(actionSets).flat())], target: targets } as const;
+// Library Skill ids are public catalogue slugs, like template ids; titles, SKILL.md text, paths and URLs are never fields.
+export const toolDimensions = { action: [...new Set(Object.values(actionSets).flat())], target: targets, skill_id: 'slug' } as const;
+const skillSources = ['repository', 'hosted', 'cms'] as const;
+// Bounded outputs of the library Skill tools: how many Skills were indexed, which catalogue answered and how many files a Skill ships.
+export const toolResultDimensions = { result_count: 'integer', skill_source: skillSources, skill_file_count: 'integer' } as const;
+const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 
 export function toolInputFields(tool: string, input: unknown) {
   const args = input && typeof input === 'object' && !Array.isArray(input) ? input as { action?: unknown; target?: unknown } : {};
@@ -24,7 +30,22 @@ export function toolInputFields(tool: string, input: unknown) {
   const action = actions.find(value => value === (args.action === undefined ? defaultAction : args.action));
   const target = tool === 'openmotion_open_preview'
     ? targets.find(value => value === (args.target === undefined ? 'project' : args.target)) : undefined;
-  return { ...(action ? { action } : {}), ...(target ? { target } : {}) };
+  const skill_id = tool === 'openmotion_get_skill' && typeof (args as { skillId?: unknown }).skillId === 'string'
+    && slug.test((args as { skillId: string }).skillId) ? (args as { skillId: string }).skillId : undefined;
+  return { ...(action ? { action } : {}), ...(target ? { target } : {}), ...(skill_id ? { skill_id } : {}) };
+}
+
+export function toolResultFields(tool: string, content: unknown) {
+  const value = content && typeof content === 'object' && !Array.isArray(content) ? content as { total?: unknown; source?: unknown; files?: unknown } : {};
+  const skill_source = skillSources.find(item => item === value.source);
+  if (tool === 'openmotion_list_skills') {
+    const result_count = count(value.total);
+    return { ...(result_count !== undefined ? { result_count } : {}), ...(skill_source ? { skill_source } : {}) };
+  }
+  if (tool === 'openmotion_get_skill') {
+    return { ...(skill_source ? { skill_source } : {}), ...(Array.isArray(value.files) ? { skill_file_count: value.files.length } : {}) };
+  }
+  return {};
 }
 
 export const validationRules = ['missing', 'invalid_type', 'invalid_enum', 'invalid_format', 'out_of_range', 'unknown_field', 'invalid_combination'] as const;
@@ -100,7 +121,7 @@ export const toolErrorCodes = [
   'COMMENT_TARGET_NOT_FOUND', 'COMMENT_NOT_FOUND', 'COMMENT_CONFLICT', 'COMMENT_LIMIT', 'NOT_FOUND', 'UNSUPPORTED',
   'INVALID_ARGUMENT', 'VERSION_CONFLICT', 'PROJECT_NOT_BOUND', 'PROJECT_NOT_FOUND', 'PROJECT_SESSION_MISMATCH',
   'REQUEST_ID_CONFLICT', 'REQUEST_STATE_UNKNOWN', 'MCP_TOOL_NOT_EXPOSED', 'EXPORT_BUSY', 'EXPORT_NOT_FOUND',
-  'EXPORT_NOT_COMPLETED', 'TEMPLATE_NOT_FOUND', 'TEMPLATE_NOT_EDITABLE', 'SOURCE_BATCH_TOO_LARGE',
+  'EXPORT_NOT_COMPLETED', 'TEMPLATE_NOT_FOUND', 'SKILL_NOT_FOUND', 'TEMPLATE_NOT_EDITABLE', 'SOURCE_BATCH_TOO_LARGE',
   'INVALID_FILE_TYPE_OR_RESERVED_PATH', 'PROJECT_VALIDATION_FAILED', 'VERSION_NOT_FOUND',
   'WORK_CLOSED', 'WORK_NOT_FOUND', 'WORK_VERSION_MISMATCH', 'WORK_GENERATION_UNTRACKED', 'GENERATION_CONTENT_UNCHANGED',
   'GENERATION_ARTIFACT_INVALID', 'VERSION_NOT_RESTORABLE', 'REVIEW_VERSION_MISMATCH', 'REVIEW_OBJECT_MISMATCH',

@@ -235,7 +235,7 @@ export class TemplateCatalog {
   async skillDetail(id: string) {
     const { skills, snapshot } = await this.skillSource();
     const skill = skills.find(item => item.id === id);
-    if (!skill) throw new Error('Skill 不存在，请先调用 openmotion_list_skills 获取 Skill 目录');
+    if (!skill) throw Object.assign(new Error('Skill 不存在，请先调用 openmotion_list_skills 获取 Skill 目录'), { code: 'SKILL_NOT_FOUND' });
     // Hosted/npm installs have no library files; publish them as hash-verified objects like template sources.
     const objects = skill.localSource ? undefined : skill.objects?.map(file => ({ ...file, url: `${snapshot!.hosted!.objectBaseUrl}/${file.sha256}` }));
     return { ...skill, ...(objects ? { objects } : {}), skillId: skill.id, motionDocument: { path: skill.localSource ? path.join(skill.localSource, 'SKILL.md') : 'SKILL.md', content: skill.instructions }, source: this.source,

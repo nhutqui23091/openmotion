@@ -370,6 +370,15 @@ backend/data directory. Deterministic coverage lives in
   `validation_rule`, with array indices collapsed and unknown keys bucketed.
   Both stdio asset names still use `tool_name=motion_assets`; WebMCP uses the
   original public name. Older events may omit these dimensions.
+- Library Skill tools: `openmotion_get_skill` calls carry the requested
+  `skill_id` (a public catalogue slug; anything else is omitted) on started and
+  finished events, and a missing Skill fails with `error_code=SKILL_NOT_FOUND`.
+  Successful stdio `mcp_tool_finished` events add bounded outputs:
+  `openmotion_list_skills` reports `result_count` (Skills in the index) and
+  `skill_source` (`repository`, `hosted` or `cms`); `openmotion_get_skill`
+  reports `skill_source` and `skill_file_count`. SKILL.md text, titles, paths,
+  object URLs and hashes are never fields. To see which Skills Agents read,
+  group successful `tool_name=motion_get_skill` finishes by `skill_id`.
   To measure `read`, filter `product=openmotion`, exclude `env=test`, select the
   appropriate `*_tool_finished` event and `action=read`: count distinct `call_id`
   for observed calls, divide successful calls (`outcome=success`) by all observed

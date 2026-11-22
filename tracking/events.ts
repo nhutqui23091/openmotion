@@ -1,4 +1,4 @@
-import { assetImportErrorCodes, exportFailureCodes, exportFailureStages, toolDimensions, toolFailureDimensions } from './tool-fields.ts';
+import { assetImportErrorCodes, exportFailureCodes, exportFailureStages, toolDimensions, toolFailureDimensions, toolResultDimensions } from './tool-fields.ts';
 import type { Entry, Registry } from './core.ts';
 import { studioUsageEvents } from './studio-events.ts';
 import { providerSetupEntries, type ProviderSetupEntry } from '../shared/workspace-url.ts';
@@ -98,7 +98,7 @@ export const omEvents = {
   webmcp_registration_result: { producers: ['studio'], fields: { ...webMcp, outcome: ['success', 'failure', 'cancelled'], duration_ms: 'integer' },
     required: ['tool_name', 'transport', 'outcome', 'duration_ms'] },
   mcp_tool_started: { producers: ['mcp'], fields: tool, required: ['tool_name', 'call_id', 'accepted'] },
-  mcp_tool_finished: { producers: ['mcp'], fields: { ...tool, outcome, duration_ms: 'integer', ...toolFailureDimensions, replayed: 'boolean' },
+  mcp_tool_finished: { producers: ['mcp'], fields: { ...tool, outcome, duration_ms: 'integer', ...toolFailureDimensions, ...toolResultDimensions, replayed: 'boolean' },
     required: ['tool_name', 'call_id', 'accepted', 'outcome', 'duration_ms'] },
   project_create_result: { producers: ['mcp'], fields: { ...business, creation_route: ['natural_language', 'template', 'reference_video', 'existing_project'], effect_status: ['applied', 'not_applied', 'unknown'] }, required: ['outcome'] },
   project_open_result: { producers: ['mcp'], fields: { ...business, opened_by_host_status: ['unknown', 'opened', 'not_opened'] }, required: ['outcome'] },
