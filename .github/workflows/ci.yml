@@ -249,6 +249,7 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 2
+          persist-credentials: false
       - name: Setup pinned Node
         uses: actions/setup-node@v6
         with:
@@ -377,6 +378,7 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 2
+          persist-credentials: false
       - name: Setup pinned Node
         uses: actions/setup-node@v6
         with:

@@ -240,3 +240,65 @@ test('root test suites are either scheduled by a workflow or recorded as unsched
     'Every root suite must be named by a workflow or listed in unscheduledSuites');
   assert.ok(suites.length > unscheduled.length, 'Expected scheduled suites to exist');
 });
+
+// Step boundaries come from indentation under `steps:`, so a step whose first key is
+// neither `name` nor `uses` is still judged on its own inputs, and nested list items
+// inside `with:` stay attached to the step that owns them.
+function workflowSteps(workflow) {
+  const steps = [];
+  let stepsIndent = -1;
+  let stepIndent = null;
+  let inSteps = false;
+  let current = null;
+  for (const raw of workflow.split(/\r?\n/)) {
+    const line = raw.replace(/\s+#.*$/, '');
+    if (!line.trim()) continue;
+    const indent = line.match(/^\s*/)[0].length;
+    if (/^\s*steps:\s*$/.test(line)) { inSteps = true; stepsIndent = indent; stepIndent = null; current = null; continue; }
+    if (!inSteps) continue;
+    const isItem = /^\s*-(\s|$)/.test(line);
+    if (!isItem && indent <= stepsIndent) { inSteps = false; current = null; continue; }
+    if (isItem) {
+      if (stepIndent === null) stepIndent = indent;
+      if (indent === stepIndent) { current = [line]; steps.push(current); continue; }
+    }
+    if (current) current.push(line);
+  }
+  return steps.map(step => step.join('\n'));
+}
+
+test('every workflow checkout discards the job token instead of persisting it', async () => {
+  const directory = fileURLToPath(new URL('../.github/workflows/', import.meta.url));
+  const files = (await readdir(directory)).filter(file => /\.ya?ml$/.test(file)).sort();
+  assert.ok(files.length > 0, 'Expected workflow files to inspect');
+  let checkouts = 0;
+  for (const file of files) {
+    const workflow = await readFile(path.join(directory, file), 'utf8');
+    for (const step of workflowSteps(workflow)) {
+      if (!step.includes('uses: actions/checkout')) continue;
+      checkouts += 1;
+      assert.match(step, /persist-credentials:\s*false/,
+        `${file} must set persist-credentials: false on every checkout`);
+    }
+  }
+  assert.ok(checkouts >= 10, 'Expected to inspect the repository checkouts, saw ' + checkouts);
+
+  // A checkout introduced by another key must still be inspected: this is the shape the
+  // old splitter folded into the previous step, which would hide a missing flag.
+  const guarded = ['jobs:', '  build:', '    steps:', '      - if: success()',
+    '        uses: actions/checkout@v6.0.2', '        with:', '          fetch-depth: 1'].join('\n');
+  const [step] = workflowSteps(guarded);
+  assert.match(step, /uses: actions\/checkout/, 'A step introduced by `if:` must still be a step');
+  assert.doesNotMatch(step, /persist-credentials/, 'The synthetic step must exercise the missing flag');
+
+  // Nested list items stay with their owner instead of becoming steps of their own.
+  const nested = ['steps:', '  - name: first', '    with:', '      list:', '        - one', '  - name: second'].join('\n');
+  assert.equal(workflowSteps(nested).length, 2);
+
+  // A bare `-` starts a sequence entry too, so it must not be folded into the step above.
+  const bare = ['steps:', '  -', '    uses: actions/checkout@v6.0.2', '    with:', '      fetch-depth: 1'].join('\n');
+  const bareSteps = workflowSteps(bare);
+  assert.equal(bareSteps.length, 1, 'A lone dash must start a step');
+  assert.match(bareSteps[0], /uses: actions\/checkout/);
+  assert.doesNotMatch(bareSteps[0], /persist-credentials/);
+});

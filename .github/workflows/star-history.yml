@@ -28,6 +28,7 @@ jobs:
         with:
           ref: readme-charts
           path: chart-data
+          persist-credentials: false
       - name: Read the current star count and update the chart
         env:
           GH_TOKEN: ${{ github.token }}
@@ -37,6 +38,8 @@ jobs:
           python3 .github/scripts/update-star-history.py chart-data "$(date -u +%F)" "$stars"
       - name: Publish changed data and chart together
         working-directory: chart-data
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git add -- stars.csv star-history.svg
@@ -44,4 +47,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'docs: refresh OpenMotion star history'
-          git push origin HEAD:refs/heads/readme-charts
+          # Authenticate this one push inline so the write token is never persisted into
+          # the chart-data checkout, which is a branch outside the reviewed main history.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/readme-charts
