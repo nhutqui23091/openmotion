@@ -1,3 +1,4 @@
+import { commitCaptionCommand } from '../mcp/caption-mutations.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -1618,6 +1619,9 @@ function createMcpDomainPorts(deps: {
             });
           }
           const captionOps = await getCaptionOps();
+          if (command === 'caption_add' || command === 'caption_update' || command === 'caption_toggle') {
+            return commitCaptionCommand(deps.files, auth, captionOps, projectId, compositionPath, command, transcript);
+          }
           const current = await deps.files.readTextFile(auth, projectId, compositionPath);
           if (!current) {
             throw new CloudError('NOT_FOUND', `Composition '${compositionPath}' not found`, {
@@ -1633,48 +1637,6 @@ function createMcpDomainPorts(deps: {
             const trackId = typeof transcript.transcriptId === 'string' ? transcript.transcriptId : undefined;
             const exported = captionOps.exportCaptionSource(current.content, format, trackId);
             return { projectId, compositionPath, format, ...exported };
-          }
-          if (command === 'caption_add') {
-            const trackId = typeof transcript.transcriptId === 'string' ? transcript.transcriptId : randomUUID();
-            const added = captionOps.manualCaptionSource(current.content, trackId, {
-              segments: Array.isArray(transcript.segments) ? (transcript.segments as never[]) : undefined,
-              subtitles: typeof transcript.subtitles === 'string' ? transcript.subtitles : undefined,
-              timelineStart: typeof transcript.timelineStart === 'number' ? transcript.timelineStart : undefined,
-              textKind: transcript.textKind === 'text' ? 'text' : 'caption',
-              captionSettings:
-                transcript.captionSettings && typeof transcript.captionSettings === 'object'
-                  ? (transcript.captionSettings as Record<string, unknown>)
-                  : undefined,
-            });
-            const committed = await deps.files.commitChanges(auth, {
-              projectId,
-              ops: [{ op: 'upsert_text', path: compositionPath, content: added.content, stampHfIds: true }],
-              expectedRevision: typeof transcript.expectedRevision === 'string' ? transcript.expectedRevision : undefined,
-              requestId: typeof transcript.requestId === 'string' ? transcript.requestId : undefined,
-              source: 'agent',
-              summary: `Added caption track to ${compositionPath}`,
-              actorKind: 'agent',
-            });
-            return { projectId, compositionPath, trackId, count: added.count, revision: committed.revision };
-          }
-          if (command === 'caption_update' || command === 'caption_toggle') {
-            const trackId = String(transcript.transcriptId ?? '');
-            const remove = transcript.remove === true;
-            const patch =
-              command === 'caption_toggle'
-                ? { visible: Boolean(transcript.visible) }
-                : ((transcript.captionSettings ?? {}) as Record<string, unknown>);
-            const updated = captionOps.updateCaptionTrackSource(current.content, trackId, patch, remove);
-            const committed = await deps.files.commitChanges(auth, {
-              projectId,
-              ops: [{ op: 'upsert_text', path: compositionPath, content: updated.content, stampHfIds: true }],
-              expectedRevision: typeof transcript.expectedRevision === 'string' ? transcript.expectedRevision : undefined,
-              requestId: typeof transcript.requestId === 'string' ? transcript.requestId : undefined,
-              source: 'agent',
-              summary: `Updated caption track ${trackId}`,
-              actorKind: 'agent',
-            });
-            return { projectId, compositionPath, trackId, count: updated.count, revision: committed.revision };
           }
           throw featureDeferredP2(`transcript.${command || 'unknown'}`);
         }

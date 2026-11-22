@@ -1012,9 +1012,13 @@ describe('Cloud API Entrypoint — End-to-End Product, Studio & Streamable HTTP 
 
     // 4. tools/list must advertise all 22 registered domain openmotion_* tools
     const listPayload = await callMcp(2, 'tools/list');
-    const tools = (listPayload.result?.tools ?? []) as Array<{ name: string }>;
+    const tools = (listPayload.result?.tools ?? []) as Array<{ name: string; description: string }>;
     assert.equal(tools.length, phase1Tools.length);
     assert.equal(tools.length, 22);
+    const transcriptGuide = tools.find(tool => tool.name === 'openmotion_assets_use')?.description;
+    assert.ok(transcriptGuide);
+    assert.match(transcriptGuide, /Cloud ASR submit\/status is unavailable/);
+    assert.match(transcriptGuide, /your own execution environment[\s\S]+ffmpeg[\s\S]+speech-to-text[\s\S]+caption_add/);
 
     // MCP discovery returns the whole index, including entries beyond Studio's page limit.
     const templateIds = Array.from({ length: 501 }, (_, i) => `mcp-template-${i}`);
@@ -1429,6 +1433,47 @@ describe('Cloud API Entrypoint — Static Assets, Read-Only GSAP & API 404 vs SP
 // ---------------------------------------------------------------------------
 
 describe('Cloud API Entrypoint — Studio UI Wiring Parity (/preview/open, WorkspaceStatus, /phase1/call, /generations, /tracking/preferences)', () => {
+  it('replays caption commands with the original track and guards both project versions', async () => {
+    const { app } = createApiFixture({ config: { AUTH_MODE: 'dev' } });
+    const post = (path: string, data: unknown) => app.request('/motion-api/' + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    const { projectId } = await (await post('projects', { title: 'Caption retries' })).json();
+    const call = (name: string, args: unknown) => post('phase1/call', { name, arguments: args });
+    const project = async () => (await call('openmotion_get_project', { projectId })).json();
+    const caption = (command: string, params: Record<string, unknown> = {}) => call('openmotion_assets_use', {
+      action: 'transcript', transcript: { projectId, compositionPath: 'index.html', command, ...params },
+    });
+    const { revision, currentVersionId } = await project();
+    const original = { expectedRevision: revision, expectedVersionId: currentVersionId,
+      requestId: 'add-cue', segments: [{ id: 'c1', text: 'Hello', start: 0, end: 1 }] };
+    const invalid = await caption('caption_add', { ...original, expectedVersionId: randomUUID() });
+    assert.equal(invalid.status, 409);
+    const added = await caption('caption_add', original);
+    assert.equal(added.status, 200, JSON.stringify(await added.clone().json()));
+    const first = await added.json();
+    assert.ok(first.trackId);
+    assert.equal(first.count, 1);
+    const current = await project();
+    const hide = { expectedVersionId: current.currentVersionId, expectedRevision: current.revision,
+      requestId: 'hide-captions', visible: false };
+    const hidden = await caption('caption_toggle', hide);
+    assert.equal(hidden.status, 200);
+    assert.equal((await hidden.json()).trackId, first.trackId);
+    const tracks = await (await caption('caption_tracks')).json();
+    assert.equal(tracks.tracks.length, 1);
+    assert.equal(tracks.tracks[0].settings.visible, false);
+
+    const hiddenVersion = (await project()).currentVersionId;
+    const reordered = { ...original, segments: [{ end: 1, start: 0, text: 'Hello', id: 'c1' }] };
+    assert.deepEqual(await (await caption('caption_add', reordered)).json(), first);
+    const afterRetry = await project();
+    assert.equal(afterRetry.currentVersionId, hiddenVersion);
+    const mismatch = await caption('caption_add', { ...original, segments: [{ id: 'c1', text: 'Changed', start: 0, end: 1 }] });
+    assert.equal(mismatch.status, 409);
+    assert.equal((await mismatch.json()).code, 'REQUEST_ID_CONFLICT');
+  });
+
   it('switches editor routes without loading messages, export jobs or a second copy of the target', async t => {
     const { app, services, pgClient, config } = createApiFixture({ config: { AUTH_MODE: 'dev' } });
     const post = (path: string, body?: Record<string, string>) => app.request('/motion-api/' + path, {

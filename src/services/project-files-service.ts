@@ -112,6 +112,8 @@ export interface CommitProjectFilesInput {
   readonly filePreconditions?: readonly FilePrecondition[];
   readonly requestId?: string;
   readonly idempotencyScope?: string;
+  /** For derived edits the logical request is stable even when its generated HTML is not. */
+  readonly commandReceipt?: { inputHash: string; result: Record<string, unknown> };
   readonly origin?: 'studio' | 'mcp' | 'agent' | 'import' | 'system';
   readonly source?: ProjectVersionSource;
   readonly summary?: string;
@@ -142,6 +144,7 @@ export interface CommitProjectFilesResult {
   readonly fileTreeChanged?: boolean;
   readonly affectedCompositions: string[];
   readonly replayed: boolean;
+  readonly commandResult?: Record<string, unknown>;
   readonly coalesced?: boolean;
 }
 
@@ -224,6 +227,39 @@ export function resolveBlobStorageKey(workspaceId: string, blobScope: BlobScope,
 
 export function canonicalInputHash(payload: unknown): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+async function readCommitReceipt(
+  db: DbExecutor, workspaceId: string, scope: string, requestId: string, inputHash: string, lock = false,
+): Promise<CommitProjectFilesResult | null> {
+  const query = db
+    .select()
+    .from(idempotencyReceipts)
+    .where(
+      and(
+        eq(idempotencyReceipts.workspaceId, workspaceId),
+        eq(idempotencyReceipts.scope, scope),
+        eq(idempotencyReceipts.requestId, requestId),
+      ),
+    )
+    .limit(1);
+  const [receipt] = lock ? await query.for('update') : await query;
+  if (receipt) {
+    if (receipt.inputHash.trim() !== inputHash) {
+      throw new CloudError(
+        'REQUEST_ID_CONFLICT',
+        `requestId "${requestId}" was already used with a different payload.`,
+        { status: 409, applied: false, details: { requestId, scope } },
+      );
+    }
+    if (receipt.state === 'completed' && receipt.responsePayload) {
+      return {
+        ...(receipt.responsePayload as unknown as CommitProjectFilesResult),
+        replayed: true,
+      };
+    }
+  }
+  return null;
 }
 
 export async function assertAgentProjectAccess(
@@ -486,6 +522,19 @@ export class ProjectFilesService {
     return content;
   }
 
+  /** Capture authorized source metadata before checking the receipt. A concurrent replay
+   * either sees the completed command here or under the project lock at commit. */
+  async readTextForCommand(
+    ctx: AuthContext, projectId: string, path: string, scope: string, requestId: string, inputHash: string,
+  ) {
+    const file = await this.getFile(ctx, projectId, path, { allowTrashed: false });
+    const replay = await readCommitReceipt(this.db, ctx.workspaceId, scope, requestId, inputHash);
+    if (replay) return { kind: 'replay' as const, commit: replay };
+    if (!file) throw new CloudError('NOT_FOUND', 'Composition file not found', { status: 404 });
+    if (!file.isText) throw new CloudError('INVALID_ARGUMENT', 'Composition must be a text file', { status: 415 });
+    return { kind: 'source' as const, content: await this.readTextBlob(ctx.workspaceId, file.blobScope, file.sha256) };
+  }
+
   /** Read a binary blob directly from S3 CAS. */
   async readBinaryBlob(workspaceId: string, blobScope: BlobScope, sha256: string, maxBytes?: number): Promise<Buffer> {
     const key = resolveBlobStorageKey(workspaceId, blobScope, sha256);
@@ -631,7 +680,7 @@ export class ProjectFilesService {
     // Build deterministic idempotency hash before hitting PG.
     const scope = input.idempotencyScope ?? 'project:files:commit';
     const inputHash = input.requestId
-      ? canonicalInputHash({
+      ? input.commandReceipt?.inputHash ?? canonicalInputHash({
           projectId: input.projectId,
           ops: preparedOps.map((op) =>
             op.op === 'delete'
@@ -843,35 +892,9 @@ export class ProjectFilesService {
         auth: ctx,
       });
 
-      // 1. Check idempotency receipt inside locked tx.
       if (input.requestId && inputHash) {
-        const existingReceipts = await tx
-          .select()
-          .from(idempotencyReceipts)
-          .where(
-            and(
-              eq(idempotencyReceipts.workspaceId, ctx.workspaceId),
-              eq(idempotencyReceipts.scope, scope),
-              eq(idempotencyReceipts.requestId, input.requestId),
-            ),
-          )
-          .for('update');
-        const receipt = existingReceipts[0];
-        if (receipt) {
-          if (receipt.inputHash.trim() !== inputHash) {
-            throw new CloudError(
-              'REQUEST_ID_CONFLICT',
-              `requestId "${input.requestId}" was already used with a different payload.`,
-              { status: 409, applied: false, details: { requestId: input.requestId, scope } },
-            );
-          }
-          if (receipt.state === 'completed' && receipt.responsePayload) {
-            return {
-              ...(receipt.responsePayload as unknown as CommitProjectFilesResult),
-              replayed: true,
-            };
-          }
-        }
+        const replay = await readCommitReceipt(tx, ctx.workspaceId, scope, input.requestId, inputHash, true);
+        if (replay) return replay;
       }
 
       const currentRevision = project.revision.trim();
@@ -1539,6 +1562,7 @@ export class ProjectFilesService {
           sortedChanged.some(path => !currentByPath.has(path) || !/\.html?$/i.test(path)),
         affectedCompositions: impact.affectedCompositions,
         replayed: false,
+        ...(input.commandReceipt && { commandResult: input.commandReceipt.result }),
         coalesced,
       };
 
