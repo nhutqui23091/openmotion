@@ -489,13 +489,34 @@ export async function apply(ctx: any) {
   );
   registerEditingWorkspace(ctx);
   const studioActions = (sessionId: string) => ({
-    openStudio: () => {
+    openStudio: async () => {
       const key = "omd-session:" + sessionId;
+      // A remembered pick goes stale: the Studio can switch projects at any time
+      // (store.selectProject rewrites activeId), and a project can be trashed. Read
+      // the list on every click and only trust an id that is still there.
+      let list: any = null;
+      try {
+        const response = await fetch(
+          "/openmotion-dsh/data/motion-api/projects",
+          { headers: { accept: "application/json" }, cache: "no-store" },
+        );
+        if (response.ok) list = await response.json();
+      } catch {}
+      const known = Array.isArray(list?.projects) ? list.projects : null;
+      const usable = (id: unknown): id is string =>
+        typeof id === "string" &&
+        id.length > 0 &&
+        (!known || known.some((project: any) => project?.id === id && !project.trashedAt));
+      // Both remembered picks go through the same check; the plugin-wide one is
+      // kept for users who chose a project in the workspace dashboard.
+      const stored = localStorage.getItem(key) || localStorage.getItem(selectedKey);
+      // Explicit picks stay first while they are valid; a stale one yields to the
+      // project the Studio actually has open. Nothing is written back: only
+      // openProject/choose know that a choice was explicit.
       const project =
-        localStorage.getItem(key) ||
-        localStorage.getItem(selectedKey) ||
+        (usable(stored) ? stored : undefined) ||
+        (usable(list?.activeId) ? list.activeId : undefined) ||
         "project";
-      localStorage.setItem(key, project);
       ctx.sidebarRight.openTab("openmotion-studio", {
         params: localStorage.getItem("omd-session-page:" + sessionId) === "templates" ? { page: "templates" } : { projectId: project },
       });
