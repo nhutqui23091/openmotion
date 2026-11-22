@@ -44,7 +44,7 @@ export function findAuthoredElement(doc: Document, live: Element): Element | nul
   return live.id ? findByAttribute(doc, "id", live.id) : null;
 }
 
-const PATH_ATTRS = ["src", "href"];
+const PATH_ATTRS = ["src", "href", "poster"];
 const CSS_URL = /\burl\(\s*(["']?)([^)"'\s](?:[^)"']*[^)"'\s])?)\1\s*\)/g;
 
 function isRelative(path: string): boolean {

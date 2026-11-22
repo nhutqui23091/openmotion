@@ -309,6 +309,31 @@ describe("paste of an element styled by its id", () => {
 });
 
 describe("copy of a sub-composition clip", () => {
+  it.each(["same origin", "isolated"])("keeps the video poster when pasting into its parent (%s)", async (mode) => {
+    const poster = "sibling.png?v=2#cover";
+    const projectPoster = `compositions/${poster}`;
+    const sub = `<template id="sub-template"><div data-composition-id="sub" data-duration="4">
+      <video class="clip" poster="${poster}" src="../assets/movie.mp4" data-start="1" data-duration="2"></video>
+    </div></template>`;
+    const hfId = stampedHfId(sub, "video");
+    const clip = { ...TITLE, id: hfId, hfId, tag: "video", sourceFile: "compositions/sub.html" };
+    usePlayerStore.setState({
+      elements: [clip], selectedElementId: clip.id, selectedElementIds: new Set([clip.id]),
+    });
+    const { clipboard, writes, iframe } = mountClipboard(null, sub, (host) => {
+      host.querySelector("video")!.setAttribute("poster", projectPoster);
+    });
+    if (mode === "isolated") {
+      Object.defineProperty(iframe, "contentDocument", { get: () => null });
+    }
+
+    expect(clipboard().handleCopy()).toBe(true);
+    await clipboard().handlePaste();
+    const movie = new DOMParser().parseFromString(writes[0]!, "text/html").querySelector("video");
+    expect(movie?.getAttribute("src")).toBe("assets/movie.mp4");
+    expect(movie?.getAttribute("poster")).toBe(projectPoster);
+  });
+
   it("rebases its relative asset paths to the project root, as the preview does", async () => {
     clearSelection();
     const sub = SUB.replace(
