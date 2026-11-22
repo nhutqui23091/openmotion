@@ -160,22 +160,35 @@ for (const [legacy, canonical] of Object.entries(workflowDocumentAliases)) {
   documents.set(legacy, target);
 }
 
-// A fence closes only on a run of the same character at least as long as its opener; an unclosed fence runs to the end of the document.
-function withoutFences(content: string) {
+/**
+ * Fenced blocks hold examples rather than content. Every fenced line becomes empty while the line
+ * count stays, so a caller that reports line numbers can share one fence rule with the readers that
+ * only scan text. A fence closes only on a run of the same character at least as long as its opener
+ * with nothing else on the line, so a nested example that opens with an info string does not close
+ * the fence that contains it; an unclosed fence runs to the end of the document.
+ */
+export function withoutFences(content: string) {
   let fence: string | undefined;
-  return content.split(/\r\n?|\n/).filter(line => {
+  return content.split(/\r\n?|\n/).map(line => {
     if (fence) {
       if (new RegExp(`^ {0,3}${fence[0] === '`' ? '`' : '~'}{${fence.length},}[ \\t]*$`).test(line)) fence = undefined;
-      return false;
+      return '';
     }
     fence = line.match(/^ {0,3}(`{3,}(?=[^`]*$)|~{3,})/)?.[1];
-    return !fence;
+    return fence ? '' : line;
   }).join('\n');
+}
+
+// A code span is example syntax rather than a link, so its characters are dropped while its line
+// breaks stay, which keeps the line numbers of callers that report findings. A span cannot cross a
+// line here, so an unbalanced backtick at most affects the line that holds it.
+export function withoutInlineCode(content: string) {
+  return content.replace(/(`+)[^\n]*?\1/g, '');
 }
 
 // Inline links and reference-link definitions; ignore fenced examples and inline code.
 function markdownHrefs(content: string) {
-  const prose = withoutFences(content).replace(/(`+)[^\n]*?\1/g, '');
+  const prose = withoutInlineCode(withoutFences(content));
   return [
     ...prose.matchAll(/\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+[^)]*)?\)/g),
     ...prose.matchAll(/^ {0,3}\[[^\]]+\]:\s*(?:<([^>]+)>|(\S+))/gm),
