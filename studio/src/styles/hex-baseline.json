@@ -1,43 +1,438 @@
 {
-  "total": 157,
+  "total": {
+    "hex": 157,
+    "palette": 873,
+    "blur": 9
+  },
   "files": {
-    "studio/src/captions/components/CaptionOverlay.tsx": 5,
-    "studio/src/captions/components/CaptionTimeline.tsx": 11,
-    "studio/src/captions/generator.ts": 1,
-    "studio/src/captions/parser.ts": 1,
-    "studio/src/captions/types.ts": 4,
-    "studio/src/components/TimelineToolbar.tsx": 1,
-    "studio/src/components/editor/BorderRadiusEditor.tsx": 2,
-    "studio/src/components/editor/DomEditCropHandles.tsx": 1,
-    "studio/src/components/editor/GestureTrailOverlay.tsx": 1,
-    "studio/src/components/editor/GridOverlay.tsx": 4,
-    "studio/src/components/editor/InlineTextToolbar.tsx": 1,
-    "studio/src/components/editor/MotionPathNode.tsx": 5,
-    "studio/src/components/editor/SnapGuideOverlay.tsx": 3,
-    "studio/src/components/editor/Transform3DCube.tsx": 5,
-    "studio/src/components/editor/colorValue.ts": 3,
-    "studio/src/components/editor/domEditingElement.ts": 1,
-    "studio/src/components/editor/gradientValue.ts": 6,
-    "studio/src/components/editor/propertyPanelColor.tsx": 7,
-    "studio/src/components/editor/propertyPanelColorCurveGraph.tsx": 16,
-    "studio/src/components/editor/propertyPanelColorScopes.tsx": 8,
-    "studio/src/components/editor/propertyPanelColorWheels.tsx": 8,
-    "studio/src/components/editor/propertyPanelFlatEffectsSection.tsx": 5,
-    "studio/src/components/editor/propertyPanelFlatStyleSections.tsx": 2,
-    "studio/src/components/editor/propertyPanelFxFamily.ts": 1,
-    "studio/src/components/editor/propertyPanelFxPresetStyle.ts": 24,
-    "studio/src/components/editor/propertyPanelHelpers.ts": 4,
-    "studio/src/components/editor/propertyPanelPrimitives.tsx": 1,
-    "studio/src/components/editor/propertyPanelSections.tsx": 1,
-    "studio/src/components/editor/propertyPanelStyleSections.tsx": 3,
-    "studio/src/components/editor/transform3dProjection.ts": 3,
-    "studio/src/components/panels/VariablesBindElement.tsx": 2,
-    "studio/src/components/panels/VariablesValueControls.tsx": 1,
-    "studio/src/components/ui/HyperframesMark.tsx": 4,
-    "studio/src/hooks/useInlineTextEdit.ts": 1,
-    "studio/src/player/components/AudioWaveform.tsx": 2,
-    "studio/src/player/components/BeatStrip.tsx": 6,
-    "studio/src/player/components/CompositionThumbnail.tsx": 2,
-    "studio/src/webmcp/webmcpTestUtils.ts": 1
+    "studio/src/App.tsx": {
+      "palette": 1
+    },
+    "studio/src/captions/components/CaptionOverlay.tsx": {
+      "hex": 5,
+      "palette": 4
+    },
+    "studio/src/captions/components/CaptionPropertyPanel.tsx": {
+      "palette": 3
+    },
+    "studio/src/captions/components/CaptionTimeline.tsx": {
+      "hex": 11
+    },
+    "studio/src/captions/components/shared.tsx": {
+      "palette": 5
+    },
+    "studio/src/captions/generator.ts": {
+      "hex": 1
+    },
+    "studio/src/captions/parser.ts": {
+      "hex": 1
+    },
+    "studio/src/captions/types.ts": {
+      "hex": 4
+    },
+    "studio/src/components/AskAgentModal.tsx": {
+      "palette": 21,
+      "blur": 2
+    },
+    "studio/src/components/CompositionMissingBanner.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/EditorShell.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/ExternalFileConflictBanner.tsx": {
+      "palette": 30,
+      "blur": 2
+    },
+    "studio/src/components/LintModal.tsx": {
+      "palette": 12,
+      "blur": 1
+    },
+    "studio/src/components/MediaPreview.tsx": {
+      "palette": 19
+    },
+    "studio/src/components/ProjectUnreachableBanner.tsx": {
+      "palette": 7
+    },
+    "studio/src/components/StudioLeftPanels.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/StudioSplash.tsx": {
+      "palette": 6
+    },
+    "studio/src/components/TimelineToolbar.tsx": {
+      "hex": 1,
+      "palette": 11
+    },
+    "studio/src/components/dock/Dock.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/editor/AnimationCard.tsx": {
+      "palette": 18
+    },
+    "studio/src/components/editor/AnimationCardParts.tsx": {
+      "palette": 16
+    },
+    "studio/src/components/editor/ArcPathControls.tsx": {
+      "palette": 5
+    },
+    "studio/src/components/editor/BlockParamsPanel.tsx": {
+      "palette": 17
+    },
+    "studio/src/components/editor/BorderRadiusEditor.tsx": {
+      "hex": 2,
+      "palette": 3
+    },
+    "studio/src/components/editor/CanvasContextMenu.tsx": {
+      "palette": 5
+    },
+    "studio/src/components/editor/ComputedTweenNotice.tsx": {
+      "palette": 7
+    },
+    "studio/src/components/editor/CropPresetBar.tsx": {
+      "palette": 6
+    },
+    "studio/src/components/editor/DomEditCropHandles.tsx": {
+      "hex": 1
+    },
+    "studio/src/components/editor/DomEditSelectionChrome.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/EaseCurveSection.tsx": {
+      "palette": 5
+    },
+    "studio/src/components/editor/EaseModeControls.tsx": {
+      "palette": 6
+    },
+    "studio/src/components/editor/EaseParamFields.tsx": {
+      "palette": 7
+    },
+    "studio/src/components/editor/FileTree.tsx": {
+      "palette": 9
+    },
+    "studio/src/components/editor/FileTreeNodes.tsx": {
+      "palette": 25
+    },
+    "studio/src/components/editor/GestureRecordControl.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/editor/GestureTrailOverlay.tsx": {
+      "hex": 1
+    },
+    "studio/src/components/editor/GridOverlay.tsx": {
+      "hex": 4
+    },
+    "studio/src/components/editor/GsapAddAnimationControl.tsx": {
+      "palette": 8
+    },
+    "studio/src/components/editor/GsapAnimationList.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/GsapAnimationSection.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/editor/InlineTextToolbar.tsx": {
+      "hex": 1
+    },
+    "studio/src/components/editor/InspectorHeaderActions.tsx": {
+      "palette": 12
+    },
+    "studio/src/components/editor/KeyframeEaseList.tsx": {
+      "palette": 8
+    },
+    "studio/src/components/editor/LayersPanel.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/editor/MotionPathNode.tsx": {
+      "hex": 5
+    },
+    "studio/src/components/editor/OffCanvasIndicators.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/PreviewGuides.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/editor/PromotableControl.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/PropertyPanel.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/editor/PropertyPanelEmptyState.tsx": {
+      "palette": 7
+    },
+    "studio/src/components/editor/SnapGuideOverlay.tsx": {
+      "hex": 3
+    },
+    "studio/src/components/editor/SnapToolbar.tsx": {
+      "palette": 19
+    },
+    "studio/src/components/editor/Transform3DCube.tsx": {
+      "hex": 5,
+      "palette": 9
+    },
+    "studio/src/components/editor/colorValue.ts": {
+      "hex": 3
+    },
+    "studio/src/components/editor/domEditingElement.ts": {
+      "hex": 1
+    },
+    "studio/src/components/editor/gradientValue.ts": {
+      "hex": 6
+    },
+    "studio/src/components/editor/propertyPanel3dTransform.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/editor/propertyPanelColor.tsx": {
+      "hex": 7
+    },
+    "studio/src/components/editor/propertyPanelColorCurveGraph.tsx": {
+      "hex": 16
+    },
+    "studio/src/components/editor/propertyPanelColorGradingControls.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/propertyPanelColorGradingSection.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/editor/propertyPanelColorScopes.tsx": {
+      "hex": 8,
+      "palette": 1
+    },
+    "studio/src/components/editor/propertyPanelColorSecondary.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/editor/propertyPanelColorWheels.tsx": {
+      "hex": 8,
+      "palette": 1
+    },
+    "studio/src/components/editor/propertyPanelCommitField.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/editor/propertyPanelFill.tsx": {
+      "palette": 32
+    },
+    "studio/src/components/editor/propertyPanelFlatColorGradingSection.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/editor/propertyPanelFlatEffectsSection.tsx": {
+      "hex": 5,
+      "palette": 2
+    },
+    "studio/src/components/editor/propertyPanelFlatMotionSection.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/editor/propertyPanelFlatOverlaysSection.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/editor/propertyPanelFlatStyleSections.tsx": {
+      "hex": 2
+    },
+    "studio/src/components/editor/propertyPanelFont.tsx": {
+      "palette": 18
+    },
+    "studio/src/components/editor/propertyPanelFxFamily.ts": {
+      "hex": 1
+    },
+    "studio/src/components/editor/propertyPanelFxPresetStyle.ts": {
+      "hex": 24
+    },
+    "studio/src/components/editor/propertyPanelHelpers.ts": {
+      "hex": 4
+    },
+    "studio/src/components/editor/propertyPanelMediaSection.tsx": {
+      "palette": 7
+    },
+    "studio/src/components/editor/propertyPanelPrimitives.tsx": {
+      "hex": 1,
+      "palette": 7
+    },
+    "studio/src/components/editor/propertyPanelSections.tsx": {
+      "hex": 1,
+      "palette": 25
+    },
+    "studio/src/components/editor/propertyPanelStyleSections.tsx": {
+      "hex": 3
+    },
+    "studio/src/components/editor/propertyPanelTimingSection.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/editor/transform3dProjection.ts": {
+      "hex": 3
+    },
+    "studio/src/components/feedback/StudioFeedbackCard.tsx": {
+      "palette": 11
+    },
+    "studio/src/components/nle/AssetPreviewOverlay.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/nle/AudioMeterStrip.tsx": {
+      "palette": 11
+    },
+    "studio/src/components/nle/NLEPreview.tsx": {
+      "palette": 2,
+      "blur": 1
+    },
+    "studio/src/components/nle/PreviewOverlays.tsx": {
+      "palette": 15
+    },
+    "studio/src/components/nle/PreviewZoomOverlay.tsx": {
+      "palette": 7,
+      "blur": 2
+    },
+    "studio/src/components/nle/TimelinePane.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/panels/MotionBlurPanel.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/panels/SlideshowPanel.tsx": {
+      "palette": 6
+    },
+    "studio/src/components/panels/SlideshowSubPanels.tsx": {
+      "palette": 55
+    },
+    "studio/src/components/panels/VariablesBindElement.tsx": {
+      "hex": 2,
+      "palette": 13
+    },
+    "studio/src/components/panels/VariablesDeclarationForm.tsx": {
+      "palette": 8
+    },
+    "studio/src/components/panels/VariablesOtherCompositions.tsx": {
+      "palette": 8
+    },
+    "studio/src/components/panels/VariablesPanel.tsx": {
+      "palette": 27
+    },
+    "studio/src/components/panels/VariablesRowAction.tsx": {
+      "palette": 3
+    },
+    "studio/src/components/panels/VariablesValueControls.tsx": {
+      "hex": 1,
+      "palette": 6
+    },
+    "studio/src/components/renders/FfmpegRequiredNotice.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/sidebar/AssetCard.tsx": {
+      "palette": 12
+    },
+    "studio/src/components/sidebar/AssetContextMenu.tsx": {
+      "palette": 9
+    },
+    "studio/src/components/sidebar/AssetsTab.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/sidebar/BlocksTab.tsx": {
+      "palette": 16
+    },
+    "studio/src/components/sidebar/CompositionsTab.tsx": {
+      "palette": 13
+    },
+    "studio/src/components/sidebar/GlobalAssetsView.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/sidebar/MediaDurationBadge.tsx": {
+      "palette": 1
+    },
+    "studio/src/components/sidebar/PromptPreviewModal.tsx": {
+      "palette": 15,
+      "blur": 1
+    },
+    "studio/src/components/sidebar/SidebarLintButton.tsx": {
+      "palette": 4
+    },
+    "studio/src/components/ui/HyperframesMark.tsx": {
+      "hex": 4
+    },
+    "studio/src/components/ui/VideoFrameThumbnail.tsx": {
+      "palette": 2
+    },
+    "studio/src/components/ui/menuStyle.ts": {
+      "palette": 8
+    },
+    "studio/src/hooks/useInlineTextEdit.ts": {
+      "hex": 1
+    },
+    "studio/src/player/components/AudioGainDialog.tsx": {
+      "palette": 12
+    },
+    "studio/src/player/components/AudioWaveform.tsx": {
+      "hex": 2,
+      "palette": 2
+    },
+    "studio/src/player/components/BeatStrip.tsx": {
+      "hex": 6
+    },
+    "studio/src/player/components/ClipBadges.tsx": {
+      "palette": 7
+    },
+    "studio/src/player/components/ClipContextMenu.tsx": {
+      "palette": 12
+    },
+    "studio/src/player/components/ClipPeakMarks.tsx": {
+      "palette": 2
+    },
+    "studio/src/player/components/CompositionThumbnail.tsx": {
+      "hex": 2
+    },
+    "studio/src/player/components/EditModal.tsx": {
+      "palette": 16
+    },
+    "studio/src/player/components/ImageThumbnail.tsx": {
+      "palette": 1
+    },
+    "studio/src/player/components/KeyframeDiamondContextMenu.tsx": {
+      "palette": 3
+    },
+    "studio/src/player/components/OutOfSyncBadge.tsx": {
+      "palette": 2
+    },
+    "studio/src/player/components/Player.tsx": {
+      "palette": 12
+    },
+    "studio/src/player/components/PlayerControls.tsx": {
+      "palette": 10
+    },
+    "studio/src/player/components/PreviewSeekBar.tsx": {
+      "palette": 1
+    },
+    "studio/src/player/components/ShortcutsPanel.tsx": {
+      "palette": 28
+    },
+    "studio/src/player/components/SpeedMenu.tsx": {
+      "palette": 2
+    },
+    "studio/src/player/components/TimelineCanvas.tsx": {
+      "palette": 2
+    },
+    "studio/src/player/components/TimelineEmptyState.tsx": {
+      "palette": 5
+    },
+    "studio/src/player/components/TrackGapContextMenu.tsx": {
+      "palette": 1
+    },
+    "studio/src/player/components/VideoThumbnail.tsx": {
+      "palette": 4
+    },
+    "studio/src/player/components/VolumeControl.tsx": {
+      "palette": 2
+    },
+    "studio/src/player/components/clipMenuAudioItems.tsx": {
+      "palette": 4
+    },
+    "studio/src/player/components/clipMenuLinkItems.tsx": {
+      "palette": 6
+    },
+    "studio/src/player/components/clipMenuToolItems.tsx": {
+      "palette": 2
+    },
+    "studio/src/utils/blockCategories.ts": {
+      "palette": 9
+    },
+    "studio/src/webmcp/webmcpTestUtils.ts": {
+      "hex": 1
+    }
   }
 }
