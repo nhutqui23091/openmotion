@@ -91,6 +91,20 @@ test('a video stored sideways is probed at the size it plays at', () => fixture(
   assert.deepEqual(await size(flipped), [64, 48]);
 }));
 
+test('a photo with a sideways EXIF orientation is probed at the size it is shown at', () => fixture(async store => {
+  const flat = path.join(store.directory, 'flat.jpg'), turned = path.join(store.directory, 'turned.jpg'), flipped = path.join(store.directory, 'flipped.jpg');
+  const made = await execute(verificationBinaries().ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=64x48', '-frames:v', '1', '-y', flat], store.directory, 20_000);
+  assert.equal(made.code, 0, made.stderr);
+  // What a phone held upright saves: landscape pixels plus an EXIF Orientation tag, here spliced in after the SOI marker.
+  const jpeg = await readFile(flat), exif = (orientation: number) => Buffer.from(`ffe1002245786966000049492a0008000000010012010300010000000${orientation}00000000000000`, 'hex');
+  await writeFile(turned, Buffer.concat([jpeg.subarray(0, 2), exif(6), jpeg.subarray(2)]));
+  await writeFile(flipped, Buffer.concat([jpeg.subarray(0, 2), exif(3), jpeg.subarray(2)]));
+  const size = async (file: string) => { const media = await probeLibraryMedia(file); return [media.width, media.height]; };
+  assert.deepEqual(await size(flat), [64, 48]);
+  assert.deepEqual(await size(turned), [48, 64]);
+  assert.deepEqual(await size(flipped), [64, 48]);
+}));
+
 test('workspace generation keeps job identity and pinned references without requiring a project', () => fixture(async store => {
   const original = await image(store.directory), bytes = await readFile(original); let calls = 0;
   const gateway = new ModelGateway(store, { detect: agents, codex: async () => { calls++; return bytes; } });

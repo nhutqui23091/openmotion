@@ -113,7 +113,10 @@ export async function probeLibraryMedia(file: string) {
   if (decoded.code) throw new Error('The media file could not be decoded');
   const waveform = stream.codec_type === 'audio' ? await extractAudioWaveform(binaries.ffmpeg, file, stream.index) : undefined;
   // Phone footage is stored sideways with a display matrix; players and ffmpeg turn it, so report the size it plays at.
-  const turned = Math.abs(Number(stream.side_data_list?.find((data: any) => data.rotation !== undefined)?.rotation ?? 0)) % 180 === 90;
+  // A photo taken upright says the same with an EXIF orientation, which ffprobe reports on the decoded frame only.
+  const frame = image ? await execute(binaries.ffprobe, ['-v', 'error', '-select_streams', String(stream.index), '-read_intervals', '%+#1', '-show_frames', '-of', 'json', file], path.dirname(file), 60_000) : undefined;
+  const sideData = [...(stream.side_data_list ?? []), ...(frame && !frame.code ? JSON.parse(frame.stdout).frames?.[0]?.side_data_list ?? [] : [])];
+  const turned = Math.abs(Number(sideData.find((data: any) => data.rotation !== undefined)?.rotation ?? 0)) % 180 === 90;
   return { modality: kind[0].split('/')[0] as Modality, mimeType: kind[0], extension: kind[1], bytes: info.size,
     ...(stream.width ? { width: turned ? stream.height : stream.width, height: turned ? stream.width : stream.height } : {}),
     ...(!image && Number(media.format?.duration) > 0 ? { duration: Number(media.format.duration) } : {}),
