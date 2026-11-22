@@ -51,6 +51,7 @@ test('Agent discovery excludes hidden models and parses CLI, help, Pi and spinne
       'Aider v0.82.0',
       'Models which match "":',
       '- gpt-4-turbo (openai/gpt-4-turbo)',
+      '- gpt-4.1     (openai/gpt-4.1)',
       'Tip: run agent login first',
       'https://example.com/docs',
       'v1.2.3',
@@ -62,6 +63,7 @@ test('Agent discovery excludes hidden models and parses CLI, help, Pi and spinne
       { id: 'model-2', label: 'Model two', source: 'cli' },
       { id: 'auto', label: 'Auto (default)', source: 'cli' },
       { id: 'openai/gpt-4-turbo', label: 'gpt-4-turbo', source: 'cli' },
+      { id: 'openai/gpt-4.1', label: 'gpt-4.1', source: 'cli' },
     ],
   );
   assert.deepEqual(
@@ -230,6 +232,15 @@ test('Codex app-server, Claude stdio initialize and Pi RPC protocol discoverers 
     { id: 'gpt-6.1-terra', label: 'GPT-6.1 Terra', source: 'cli' },
   ]);
 
+  // Generic JSON-RPC -32000 on Codex app-server must reject (so debug models fallback runs), whereas OAuth wording marks signed-out
+  const codexErrMock = path.join(root, 'codex-err.mjs');
+  await writeFile(codexErrMock, `#!/usr/bin/env node\nimport readline from 'node:readline'; const send=v=>console.log(JSON.stringify(v)); readline.createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line); if(m.method==='initialize') send({id:m.id,result:{}}); else if(m.method==='model/list') send({id:m.id,error:{code:-32000,message:'Internal upstream timeout'}}); });`, { mode: 0o755 });
+  await assert.rejects(discoverCodexAppServer(codexErrMock, 5_000), /Codex could not list models/);
+
+  const codexOauthMock = path.join(root, 'codex-oauth.mjs');
+  await writeFile(codexOauthMock, `#!/usr/bin/env node\nimport readline from 'node:readline'; const send=v=>console.log(JSON.stringify(v)); readline.createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line); if(m.method==='initialize') send({id:m.id,result:{}}); else if(m.method==='model/list') send({id:m.id,error:{code:-32001,message:'OAuth token expired'}}); });`, { mode: 0o755 });
+  assert.equal((await discoverCodexAppServer(codexOauthMock, 5_000)).auth, 'signed-out');
+
   const claudeMock = path.join(root, 'claude-mock.mjs');
   await writeFile(claudeMock, `#!/usr/bin/env node\nimport readline from 'node:readline'; const send=v=>console.log(JSON.stringify(v)); readline.createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line); if(m.type==='control_request' && m.request?.subtype==='initialize') send({type:'control_response',response:{subtype:'success',request_id:m.request_id,response:{claude_code_version:'2.1.329',models:[{value:'default',displayName:'Default'},{value:'opus',displayName:'Opus',description:'Opus 5.5 · Best',supportsEffort:true,supportedEffortLevels:['low','high','max']},{value:'fable',displayName:'Fable',description:'Fable 5.2 · Hardest',supportsEffort:true,supportedEffortLevels:['high','max']}]}}}); });`, { mode: 0o755 });
   const claudeResult = await discoverClaudeModels(claudeMock, 5_000);
@@ -311,9 +322,14 @@ test('LocalAgentDirectory routes Antigravity, Claude, Kiro, Gemini, Qwen, Vibe a
   const gemini = await dir.inspect('gemini');
   assert.equal(gemini.models[0].id, 'gemini-m1');
 
-  // OpenCode falls back to ACP when `opencode models` fails
+  // OpenCode falls back to ACP when `opencode models` fails (via registry acpWhenModelListEmpty)
   const opencode = await dir.inspect('opencode');
   assert.equal(opencode.models[0].id, 'opencode-m1');
+
+  // AtomCode allows empty models without discoveryError when `models` and `acp` are unadvertised (via registry allowEmptyModels)
+  const atomcode = await dir.inspect('atomcode');
+  assert.deepEqual(atomcode.models, []);
+  assert.equal(atomcode.discoveryError, undefined);
 
   // Qwen returns [] cleanly when settings file is absent, and Vibe parses config.toml
   const prevQwen = process.env.QWEN_SETTINGS_FILE;

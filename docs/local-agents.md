@@ -13,7 +13,8 @@ Listing Agents checks executable locations without launching every client. Inspe
 | Codex | `app-server` paginated `model/list`, falling back to `debug models`, excluding hidden models; supported reasoning levels |
 | Claude Code, OpenClaude | Non-prompt stdio `control_request` `initialize` (live models and effort levels with hooks/MCP disabled), falling back to Agent-managed `sonnet`, `opus`, `haiku` aliases |
 | Antigravity | ACP (`agy acp`, preferring `configOptions` model families and per-model `thought_level` reasoning), falling back to `agy models` |
-| OpenCode, Cursor Agent, MiMo Code, AtomCode | `models` catalogue output (preserving display labels and filtering status/spinner text), falling back to ACP `acp` when supported |
+| OpenCode, Cursor Agent, MiMo Code | `models` catalogue output (preserving display labels and filtering status/spinner text), falling back to ACP `acp` when empty or unsupported |
+| AtomCode | `models` catalogue output or advertised ACP/`--help` choices when supported by the installed CLI, otherwise empty without error |
 | Aider | `--list-models ""` output, preserving canonical `provider/model` IDs |
 | Pi | RPC (`--mode rpc --no-session` `get_available_models`, including per-model thinking levels), falling back to `--list-models` |
 | Qwen Code | ACP (`--acp`), merged with local `~/.qwen/settings.json` model-provider entries; credentials are not returned |

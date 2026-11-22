@@ -90,6 +90,14 @@ function parseLineModelEntry(rawLine: string): { id: string; label?: string } | 
   const line = rawLine.replace(/^(?:[*•▸►✓✔>]|-(?!-))\s+/, '').trim();
   if (!line || PROSE_LINE_RE.test(line)) return null;
 
+  // Parenthesized alias / canonical ID first (including aligned columns like `- gpt-4-turbo     (openai/gpt-4-turbo)`).
+  const parenMatch = line.match(/^(\S+)\s+\(([^)]+)\)$/);
+  if (parenMatch) {
+    const [, first, inner] = parenMatch;
+    if (looksLikeModelToken(inner) && inner.includes('/')) return { id: inner, label: first };
+    return looksLikeModelToken(first) ? { id: first } : null;
+  }
+
   // Tab-separated or multi-space column output (e.g. `agy models`: `gemini-4-neon-high\tGemini 4 Neon (High)`).
   const columnMatch = line.match(/^(\S+)(?:\t+|\s{2,})(.+)$/);
   if (columnMatch) return looksLikeModelToken(columnMatch[1]) ? { id: columnMatch[1], label: columnMatch[2].trim() } : null;
@@ -97,14 +105,6 @@ function parseLineModelEntry(rawLine: string): { id: string; label?: string } | 
   // Dash-separated label (e.g. `cursor-agent models`: `model-2 - Model two` or `auto - Auto (default)`).
   const dashMatch = line.match(/^(\S+)\s+[-–—]\s+(.+)$/);
   if (dashMatch) return looksLikeModelToken(dashMatch[1]) ? { id: dashMatch[1], label: dashMatch[2].trim() } : null;
-
-  // Parenthesized alias / canonical ID (e.g. `aider --list-models`: `- gpt-4-turbo (openai/gpt-4-turbo)` or `auto (default)`).
-  const parenMatch = line.match(/^(\S+)\s+\(([^)]+)\)$/);
-  if (parenMatch) {
-    const [, first, inner] = parenMatch;
-    if (looksLikeModelToken(inner) && inner.includes('/')) return { id: inner, label: first };
-    return looksLikeModelToken(first) ? { id: first } : null;
-  }
 
   // Single model token per line (e.g. `opencode models`: `anthropic/claude-sonnet-4-5`).
   return !/\s/.test(line) && looksLikeModelToken(line) ? { id: line } : null;
@@ -297,11 +297,11 @@ export function extractAcpModels(configOptions: unknown, availableModels: unknow
   return normalizeAgentModels(enriched);
 }
 
-function isAcpAuthError(error: any): boolean {
+function isRpcAuthError(error: any, allowAcpAuthCode: boolean): boolean {
   if (!error || typeof error !== 'object') return false;
-  if (error.code === -32000) return true;
+  if (allowAcpAuthCode && error.code === -32000) return true;
   const detail = `${error.message ?? ''} ${error.data?.details ?? ''} ${typeof error.data === 'string' ? error.data : ''}`;
-  return /\b(?:auth(?:enticat(?:e|ed|es|ing|ion))?|credentials?|log(?:[\s-]+)?in|sign(?:[\s-]+)?in|unauthorized|unauthenticated)\b/i.test(detail);
+  return /(?:auth|oauth|login|log[\s-]+in|sign[\s-]+in|credential|expired\s+token|token\s+expired|unauthorized|unauthenticated)/i.test(detail);
 }
 
 type NdjsonProbeContext<T> = {
@@ -446,7 +446,7 @@ export async function discoverAcp(bin: string, args: string[], options: AcpDisco
           }
         } else if (message.error && (message.id === 1 || message.id === 2)) {
           clearTimers();
-          if (isAcpAuthError(message.error)) ctx.done({ models: [], auth: 'signed-out', ...(agentVersion ? { version: agentVersion } : {}) });
+          if (isRpcAuthError(message.error, true)) ctx.done({ models: [], auth: 'signed-out', ...(agentVersion ? { version: agentVersion } : {}) });
           else ctx.fail(new Error('Agent could not list models'));
         } else if (message.id === 1) {
           const res = message.result ?? {};
@@ -485,7 +485,7 @@ export async function discoverCodexAppServer(bin: string, timeoutMs = 20_000): P
         if (message.method && message.id !== undefined) {
           ctx.send({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Discovery does not support client operations' } });
         } else if (message.error && message.id !== undefined) {
-          if (isAcpAuthError(message.error)) ctx.done({ models: [], auth: 'signed-out' });
+          if (isRpcAuthError(message.error, false)) ctx.done({ models: [], auth: 'signed-out' });
           else ctx.fail(new Error('Codex could not list models'));
         } else if (message.id === 1) {
           ctx.send({ jsonrpc: '2.0', method: 'initialized' });

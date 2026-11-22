@@ -6,7 +6,8 @@ export type AgentDefinition = {
   id: string; label: string; bin: string; binAliases?: string[]; icon: string; website: string;
   loginArgs?: string[]; loginHint?: string; startArgs?: string[];
   discovery?: AgentDiscoveryKind;
-  modelArgs?: string[]; acpArgs?: string[]; acpFallbacks?: string[][]; acpBin?: string; modelFlag?: string;
+  modelArgs?: string[]; acpArgs?: string[]; acpFallbacks?: string[][]; acpBin?: string;
+  acpWhenModelListEmpty?: boolean; allowEmptyModels?: boolean; modelFlag?: string;
 };
 export type LocalAgent = AgentDefinition & { installed: boolean; version?: string; auth: AgentAuth; checkedAt?: string; models: AgentModel[]; modelFlag?: string; effortFlag?: string; discoveryError?: string };
 export type AgentChoice = { agent: string; model: string; reasoning?: string };
@@ -17,9 +18,9 @@ export const localAgents: AgentDefinition[] = [
   { id: 'codex', label: 'Codex', bin: 'codex', icon: 'codex', website: 'https://github.com/openai/codex', loginArgs: ['login'], discovery: 'codex', modelFlag: '--model' },
   { id: 'claude', label: 'Claude Code', bin: 'claude', icon: 'claude-code', website: 'https://code.claude.com/docs/en/setup', loginArgs: ['auth', 'login'], discovery: 'claude', modelFlag: '--model' },
   { id: 'kimi', label: 'Kimi Code', bin: 'kimi', icon: 'kimi', website: 'https://github.com/MoonshotAI/kimi-code', loginHint: 'Run /login in the Agent', discovery: 'acp', acpArgs: ['acp'] },
-  { id: 'opencode', label: 'OpenCode', bin: 'opencode', icon: 'opencode', website: 'https://opencode.ai/docs/', loginArgs: ['auth', 'login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], modelFlag: '--model' },
+  { id: 'opencode', label: 'OpenCode', bin: 'opencode', icon: 'opencode', website: 'https://opencode.ai/docs/', loginArgs: ['auth', 'login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], acpWhenModelListEmpty: true, modelFlag: '--model' },
   { id: 'gemini', label: 'Gemini CLI', bin: 'gemini', icon: 'gemini', website: 'https://github.com/google-gemini/gemini-cli', loginHint: 'Sign in on first launch', discovery: 'acp', acpArgs: ['--acp'], acpFallbacks: [['--experimental-acp']], modelFlag: '--model' },
-  { id: 'cursor-agent', label: 'Cursor Agent', bin: 'cursor-agent', binAliases: ['agent'], icon: 'cursor-agent', website: 'https://cursor.com/docs/cli/overview', loginArgs: ['login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], modelFlag: '--model' },
+  { id: 'cursor-agent', label: 'Cursor Agent', bin: 'cursor-agent', binAliases: ['agent'], icon: 'cursor-agent', website: 'https://cursor.com/docs/cli/overview', loginArgs: ['login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], acpWhenModelListEmpty: true, modelFlag: '--model' },
   { id: 'copilot', label: 'GitHub Copilot CLI', bin: 'copilot', icon: 'copilot', website: 'https://github.com/github/copilot-cli', loginHint: 'Run /login in the Agent', discovery: 'acp', acpArgs: ['--acp'], modelFlag: '--model' },
   { id: 'deepseek-harness', label: 'DeepSeek Harness', bin: 'dsh', icon: 'deepseek', website: 'https://github.com/deepseek-ai/deepseek-harness', loginHint: 'Configure the Agent using its official guide', discovery: 'acp', acpArgs: ['acp'] },
   { id: 'qwen', label: 'Qwen Code', bin: 'qwen', icon: 'qwencloud', website: 'https://github.com/QwenLM/qwen-code', loginHint: 'Sign in on first launch', discovery: 'qwen', acpArgs: ['--acp'], modelFlag: '--model' },
@@ -35,9 +36,9 @@ export const localAgents: AgentDefinition[] = [
   { id: 'codebuddy', label: 'CodeBuddy Code', bin: 'codebuddy', icon: 'codebuddy', website: 'https://www.codebuddy.cn', loginHint: 'Sign in on first launch', discovery: 'acp', acpArgs: ['--acp'], modelFlag: '--model' },
   { id: 'qoder', label: 'Qoder CLI', bin: 'qodercli', icon: 'qoder', website: 'https://qoder.com/download', loginArgs: ['login'], discovery: 'acp', acpArgs: ['--acp'], modelFlag: '--model' },
   { id: 'trae-cli', label: 'Trae CLI', bin: 'traecli', icon: 'trae', website: 'https://www.volcengine.com/docs/86677/2227861?lang=zh', loginHint: 'Sign in on first launch', discovery: 'acp', acpArgs: ['acp', 'serve'], acpFallbacks: [['acp']] },
-  { id: 'mimo', label: 'MiMo Code', bin: 'mimo', icon: 'mimo', website: 'https://mimo.ai', loginHint: 'Sign in on first launch', discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], modelFlag: '--model' },
+  { id: 'mimo', label: 'MiMo Code', bin: 'mimo', icon: 'mimo', website: 'https://mimo.ai', loginHint: 'Sign in on first launch', discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], acpWhenModelListEmpty: true, modelFlag: '--model' },
   { id: 'aider', label: 'Aider', bin: 'aider', icon: 'aider', website: 'https://aider.chat/docs/install.html', loginHint: 'Configure the Agent using its official guide', discovery: 'lines', modelArgs: ['--list-models', ''], modelFlag: '--model' },
-  { id: 'atomcode', label: 'AtomCode', bin: 'atomcode', icon: 'atomcode', website: 'https://atomcode.atomgit.com/docs/en/quickstart.html', loginArgs: ['login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], modelFlag: '--model' },
+  { id: 'atomcode', label: 'AtomCode', bin: 'atomcode', icon: 'atomcode', website: 'https://atomcode.atomgit.com/docs/en/quickstart.html', loginArgs: ['login'], discovery: 'lines', modelArgs: ['models'], acpArgs: ['acp'], allowEmptyModels: true, modelFlag: '--model' },
   { id: 'deepseek', label: 'DeepSeek TUI', bin: 'deepseek', binAliases: ['codewhale'], icon: 'deepseek', website: 'https://github.com/Hmbown/CodeWhale', loginHint: 'Configure the Agent using its official guide', discovery: 'help', acpArgs: ['acp'], modelFlag: '--model' },
   { id: 'reasonix', label: 'DeepSeek Reasonix', bin: 'reasonix', icon: 'deepseek', website: 'https://github.com/esengine/DeepSeek-Reasonix', loginHint: 'Configure the Agent using its official guide', discovery: 'acp', acpArgs: ['acp'], modelFlag: '--model' },
   { id: 'openclaude', label: 'OpenClaude', bin: 'openclaude', icon: 'claude-code', website: 'https://openclaude.gitlawb.com/', loginHint: 'Sign in on first launch', discovery: 'claude', modelFlag: '--model' },

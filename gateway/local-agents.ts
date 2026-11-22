@@ -270,13 +270,13 @@ export class LocalAgentDirectory {
       } else if (def.modelArgs) {
         const data = await this.probe(bin, def.modelArgs);
         if (data.ok) result.models = parseAgentModels(def.discovery, data.text);
-        if (!result.models.length && def.acpArgs && (!hasHelp || /\bacp\b/i.test(help.text) || ['opencode', 'cursor-agent', 'mimo'].includes(id))) {
+        if (!result.models.length && def.acpArgs && (!hasHelp || /\bacp\b/i.test(help.text) || Boolean(def.acpWhenModelListEmpty))) {
           const acp = await this.tryAcpCandidates(bin, [def.acpArgs], acpOptions);
           if (acp.version && !result.version) result.version = acp.version;
           if (acp.auth === 'signed-out') result.auth = 'signed-out';
           else if (acp.models.length > 0) result.models = acp.models;
-          else if (!data.ok && !acp.ok && id !== 'atomcode') throw new Error('Model discovery unavailable');
-        } else if (!data.ok && id !== 'atomcode') {
+          else if (!data.ok && !acp.ok && !def.allowEmptyModels) throw new Error('Model discovery unavailable');
+        } else if (!data.ok && !def.allowEmptyModels) {
           const fromHelp = hasHelp ? parseAgentModels('help', help.text) : [];
           if (fromHelp.length > 0) result.models = fromHelp;
           else throw new Error('Model discovery unavailable');
