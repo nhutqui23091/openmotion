@@ -22,6 +22,12 @@ function browserLocale(): Locale | undefined {
 
 export function readLocale(): Locale {
   try { const saved = localStorage.getItem(LOCALE_STORAGE_KEY); if (isLocale(saved)) return saved; } catch { /* Private browsing can deny storage. */ }
+  // An explicit ?locale= URL parameter lets an embedding host choose the
+  // workspace language regardless of the browser language.
+  try {
+    const requested = new URLSearchParams(window.location.search).get('locale');
+    if (isLocale(requested)) return requested;
+  } catch { /* Non-browser environments keep the normal resolution. */ }
   return browserLocale() ?? 'zh-CN';
 }
 

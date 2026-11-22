@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.spyOn(navigator, 'language', 'get').mockReturnValue('unsupported');
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
-afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); });
+afterEach(() => { act(() => root.unmount()); host.remove(); window.happyDOM.setURL('http://localhost/'); vi.restoreAllMocks(); });
 
 function EditorState() {
   const { t, locale, setLocale } = useI18n();
@@ -139,6 +139,24 @@ it('uses navigator.language when the preferred-language list is empty', () => {
 it('keeps a saved preference ahead of the browser language', () => {
   vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
   localStorage.setItem(LOCALE_STORAGE_KEY, 'pt-BR');
+  expect(readLocale()).toBe('pt-BR');
+});
+
+it('honors an explicit locale URL parameter ahead of the browser language', () => {
+  vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
+  window.happyDOM.setURL('https://studio.example/?locale=ja');
+  expect(readLocale()).toBe('ja');
+});
+
+it('ignores an unsupported locale URL parameter', () => {
+  vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
+  window.happyDOM.setURL('https://studio.example/?locale=invalid');
+  expect(readLocale()).toBe('en');
+});
+
+it('keeps a saved preference ahead of the locale URL parameter', () => {
+  localStorage.setItem(LOCALE_STORAGE_KEY, 'pt-BR');
+  window.happyDOM.setURL('https://studio.example/?locale=ja');
   expect(readLocale()).toBe('pt-BR');
 });
 

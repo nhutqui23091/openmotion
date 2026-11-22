@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { Dashboard } from "../src/client";
 import { configureStudio } from "../src/studio";
+import { workspaceMessages } from "../src/workspace-i18n";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | undefined;
@@ -13,12 +14,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount() {
+function mount(props: Partial<React.ComponentProps<typeof Dashboard>> = {}) {
   configureStudio("http://127.0.0.1:4173");
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  act(() => root!.render(<Dashboard begin={vi.fn()} openConversation={vi.fn()} openProject={vi.fn()} />));
+  act(() => root!.render(<Dashboard begin={vi.fn()} openConversation={vi.fn()} openProject={vi.fn()} {...props} />));
 }
 
 it("omits unknown duration badges and resolves local template covers", async () => {
@@ -71,4 +72,27 @@ it("keeps templates usable when projects fail and retries only projects", async 
   await act(async () => (document.querySelector("[aria-label='Projects'] [role=alert] button") as HTMLButtonElement).click());
   expect(document.body.textContent).toContain("Recovered project");
   expect(fetcher.mock.calls.filter(([url]) => url.includes("template-catalog"))).toHaveLength(1);
+});
+
+it("follows the host display language for copy, catalog requests and embedded Studio", async () => {
+  const fetcher = vi.fn(async (url: string) => Response.json(url.includes("template-catalog") ? { items: [] } : { projects: [] }));
+  vi.stubGlobal("fetch", fetcher);
+  const zh = workspaceMessages.zh as Record<string, string>;
+  await act(async () => mount({ t: (key) => zh[key] ?? key, activeLocale: () => "zh" }));
+  expect(document.body.textContent).toContain("你想让什么动起来？");
+  expect(document.body.textContent).toContain("继续上次的创作");
+  expect(fetcher.mock.calls.some(([url]) => url.includes("template-catalog") && url.includes("locale=zh"))).toBe(true);
+  const templatesNav = Array.from(document.querySelectorAll(".omd-nav button")).find((button) => button.textContent === "模板库") as HTMLButtonElement;
+  await act(async () => templatesNav.click());
+  const iframe = document.querySelector(".omd-embedded iframe")!;
+  expect(iframe.getAttribute("src")).toContain("locale=zh-CN");
+  expect(iframe.getAttribute("title")).toBe("OpenMotion 模板库");
+});
+
+it("embeds Studio with an explicit locale in the English default", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ items: [], projects: [] })));
+  await act(async () => mount());
+  const templatesNav = Array.from(document.querySelectorAll(".omd-nav button")).find((button) => button.textContent === "Templates") as HTMLButtonElement;
+  await act(async () => templatesNav.click());
+  expect(document.querySelector(".omd-embedded iframe")?.getAttribute("src")).toContain("locale=en");
 });

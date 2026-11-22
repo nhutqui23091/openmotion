@@ -6,24 +6,23 @@ import { studio, configureStudio, studioAssetUrl } from "./studio";
 import { useDashboardList } from "./useDashboardList";
 import { OPENMOTION_TEMPLATE_ACTION } from "./templateRecommendationAction";
 import { TemplateRecommendationCard } from "./TemplateRecommendationCard";
+import { WORKSPACE_NS, englishT, registerWorkspaceLocale, studioLocale, type WorkspaceTranslate } from "./workspace-i18n";
 const selectedKey = "openmotion-dsh-project";
 type Page = "home" | "templates" | "brands" | "assets";
-const pageNames: Record<Page, string> = {
-  home: "Workspace",
-  templates: "Templates",
-  brands: "Brand Kits",
-  assets: "Assets",
-};
-function libraryUrl(page: Page, templateId: string | null): string {
+function pageName(t: WorkspaceTranslate, page: Page): string {
+  return t(page === "home" ? "page.workspace" : page === "templates" ? "page.templates" : page === "brands" ? "page.brands" : "page.assets");
+}
+function libraryUrl(page: Page, templateId: string | null, locale: string): string {
+  const language = "&locale=" + encodeURIComponent(studioLocale(locale));
   if (page === "templates")
     return (
       studio +
-      "/?hostChrome=1&templates=1" +
+      "/?hostChrome=1&templates=1" + language +
       (templateId ? "&template=" + encodeURIComponent(templateId) : "")
     );
   return (
     studio +
-    "/?hostChrome=1&page=" +
+    "/?hostChrome=1" + language + "&page=" +
     (page === "brands" ? "brand-kit" : "assets")
   );
 }
@@ -110,10 +109,14 @@ export function Dashboard({
   begin,
   openConversation,
   openProject,
+  t = englishT,
+  activeLocale = () => "en",
 }: {
   begin: (prompt: string) => void;
   openConversation: () => void;
   openProject: (id: string) => void;
+  t?: WorkspaceTranslate;
+  activeLocale?: () => string;
 }) {
   const theme = useHostTheme();
   const [page, setPage] = useState<Page>("home"),
@@ -122,11 +125,12 @@ export function Dashboard({
       localStorage.getItem(selectedKey) || "project",
     );
   const [prompt, setPrompt] = useState("");
+  const locale = activeLocale();
   const { items: projects, loading: projectsLoading, error: projectsError, reload: loadProjects } = useDashboardList<Project>(
-    "/openmotion-dsh/data/motion-api/projects", "projects", "Could not load projects",
+    "/openmotion-dsh/data/motion-api/projects", "projects", t("projects.failure"),
   );
   const { items: templates, loading: templatesLoading, error: templatesError, reload: loadTemplates } = useDashboardList<Template>(
-    "/openmotion-dsh/data/api/template-catalog?limit=6&locale=en&covered=true", "items", "Could not load templates",
+    "/openmotion-dsh/data/api/template-catalog?limit=6&locale=" + encodeURIComponent(locale) + "&covered=true", "items", t("templates.failure"),
   );
   const choose = (id: string) => {
     localStorage.setItem(selectedKey, id);
@@ -136,7 +140,8 @@ export function Dashboard({
   const current = projects.find((p) => p.id === project);
   const start = (text = prompt) =>
     begin(
-      `${text || "Help me create a short product video. Ask me about the product, audience and style first."}\n\nOpenMotion project: ${current?.title || project} (${project}). Use OpenMotion tools to read the latest project before editing. Confirm the brief with me before creating a new project.`,
+      `${text || t("prompt.default")}\n\n` +
+      t("prompt.suffix", { title: current?.title || project, id: project }),
     );
   return (
     <section className="omd" data-motion-ui data-theme={theme}>
@@ -145,27 +150,27 @@ export function Dashboard({
           <Mark />
           <strong>OpenMotion</strong>
           <span>/</span>
-          <span>{pageNames[page]}</span>
+          <span>{pageName(t, page)}</span>
         </div>
         <div className="omd-top-right">
           <span className="ui-badge ui-badge--accent">
-            <i className="omd-dot" /> Local workspace
+            <i className="omd-dot" /> {t("badge.local")}
           </span>
           <button
             className="ui-button ui-button--ghost ui-button--sm"
             onClick={openConversation}
           >
-            Agent chat <Icon name="arrow" size={14} />
+            {t("action.agentChat")} <Icon name="arrow" size={14} />
           </button>
         </div>
       </header>
-      <nav className="omd-nav" aria-label="OpenMotion workspace">
+      <nav className="omd-nav" aria-label={t("nav.aria")}>
         {[
-          ["home", "Overview"],
-          ["studio", "Studio"],
-          ["templates", "Templates"],
-          ["brands", "Brand Kits"],
-          ["assets", "Assets"],
+          ["home", t("nav.overview")],
+          ["studio", t("nav.studio")],
+          ["templates", t("nav.templates")],
+          ["brands", t("nav.brands")],
+          ["assets", t("nav.assets")],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -188,32 +193,29 @@ export function Dashboard({
         ))}
         <a
           className="omd-external"
-          href={studio}
+          href={studio + "/?locale=" + encodeURIComponent(studioLocale(locale))}
           target="_blank"
           rel="noreferrer"
         >
-          Open standalone ↗
+          {t("link.standalone")}
         </a>
       </nav>
       {page !== "home" ? (
         <div className="omd-embedded">
           <iframe
-            title={"OpenMotion " + page}
+            title={"OpenMotion " + pageName(t, page)}
             key={page}
-            src={libraryUrl(page, templateId)}
+            src={libraryUrl(page, templateId, locale)}
             allow="clipboard-write; fullscreen"
           />
         </div>
       ) : (
         <main className="omd-main">
-          <div className="omd-kicker">YOUR IDEAS. IN MOTION.</div>
+          <div className="omd-kicker">{t("hero.kicker")}</div>
           <div className="omd-heading">
             <div>
-              <h1>What will you bring to life?</h1>
-              <p>
-                Start with an idea. Shape it with your agent. Make it yours in
-                Studio.
-              </p>
+              <h1>{t("hero.title")}</h1>
+              <p>{t("hero.subtitle")}</p>
             </div>
             <span className="omd-version">OPENMOTION / DSH</span>
           </div>
@@ -225,26 +227,26 @@ export function Dashboard({
             }}
           >
             <label className="omd-sr" htmlFor="omd-prompt">
-              Describe your video
+              {t("compose.label")}
             </label>
             <textarea
               id="omd-prompt"
-              placeholder="A launch video for your next big thing…"
+              placeholder={t("compose.placeholder")}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
             <div className="omd-compose-bottom">
-              <span>Idea → Agent → Editable video</span>
+              <span>{t("compose.flow")}</span>
               <button className="ui-button ui-button--primary" type="submit">
-                Create with agent <Icon name="arrow" size={16} />
+                {t("compose.submit")} <Icon name="arrow" size={16} />
               </button>
             </div>
           </form>
           <div className="omd-quick">
             {[
-              "Create a product launch",
-              "Recreate a reference video",
-              "Adapt a template",
+              t("quick.launch"),
+              t("quick.recreate"),
+              t("quick.adapt"),
             ].map((s) => (
               <button
                 className="ui-button ui-button--ghost ui-button--sm"
@@ -255,28 +257,28 @@ export function Dashboard({
               </button>
             ))}
           </div>
-          <section className="omd-section" aria-label="Projects" aria-busy={projectsLoading}>
+          <section className="omd-section" aria-label={t("projects.aria")} aria-busy={projectsLoading}>
             <div className="omd-section-head">
-              <h2>Pick up where you left off</h2>
+              <h2>{t("projects.title")}</h2>
               <button
                 className="ui-button ui-button--ghost ui-button--sm"
                 onClick={loadProjects}
                 disabled={projectsLoading}
               >
-                {projectsLoading ? "Loading…" : "Refresh"}
+                {projectsLoading ? t("common.loading") : t("common.refresh")}
               </button>
             </div>
             {projectsError && (
               <div className="omd-error" role="alert">
                 {projectsError}{" "}
                 <button className="ui-button ui-button--sm" onClick={loadProjects}>
-                  Retry
+                  {t("common.retry")}
                 </button>
               </div>
             )}
             <div className="omd-project-grid">
               {projectsLoading && projects.length === 0 && <>
-                <span className="omd-sr" role="status">Loading projects…</span>
+                <span className="omd-sr" role="status">{t("projects.loading")}</span>
                 {Array.from({ length: 2 }, (_, index) => <div className="omd-project" aria-hidden="true" key={index}>
                   <div className="omd-project-art ui-skeleton" />
                   <div className="omd-project-meta"><span className="ui-skeleton omd-placeholder-line" /></div>
@@ -293,9 +295,9 @@ export function Dashboard({
                     <div className="omd-project-art">
                       <Mark />
                       <span>
-                        Make something
+                        {t("project.artTop")}
                         <br />
-                        <em>move.</em>
+                        <em>{t("project.artBottom")}</em>
                       </span>
                       <span className="omd-project-play">
                         <Icon />
@@ -304,7 +306,7 @@ export function Dashboard({
                     <div className="omd-project-meta">
                       <div>
                         <strong>{p.title}</strong>
-                        <small>Local project · Open in Studio</small>
+                        <small>{t("project.meta")}</small>
                       </div>
                       <Icon name="arrow" size={16} />
                     </div>
@@ -312,67 +314,65 @@ export function Dashboard({
                 ))}
               <button
                 className="omd-new"
-                onClick={() => start("Help me plan a new video project.")}
+                onClick={() => start(t("prompt.newProject"))}
               >
                 <Icon name="plus" size={24} />
-                <strong>A fresh start</strong>
-                <small>Bring an idea to your agent</small>
+                <strong>{t("project.new")}</strong>
+                <small>{t("project.newHint")}</small>
               </button>
             </div>
           </section>
-          <section className="omd-section" aria-label="Templates" aria-busy={templatesLoading}>
+          <section className="omd-section" aria-label={t("templates.aria")} aria-busy={templatesLoading}>
             <div className="omd-section-head">
               <div>
-                <h2>A little inspiration goes a long way</h2>
-                <p>
-                  Motion references and editable templates, ready to explore.
-                </p>
+                <h2>{t("templates.title")}</h2>
+                <p>{t("templates.subtitle")}</p>
               </div>
               <div className="omd-list-actions">
                 <button className="ui-button ui-button--ghost ui-button--sm" onClick={loadTemplates} disabled={templatesLoading}>
-                  {templatesLoading ? "Loading…" : "Refresh templates"}
+                  {templatesLoading ? t("common.loading") : t("templates.refresh")}
                 </button>
                 <button className="ui-button ui-button--ghost ui-button--sm" onClick={() => setPage("templates")}>
-                  Explore library <Icon name="arrow" size={14} />
+                  {t("templates.explore")} <Icon name="arrow" size={14} />
                 </button>
               </div>
             </div>
             {templatesError && <div className="omd-error" role="alert">
               {templatesError}{" "}
-              <button className="ui-button ui-button--sm" onClick={loadTemplates}>Retry</button>
+              <button className="ui-button ui-button--sm" onClick={loadTemplates}>{t("common.retry")}</button>
             </div>}
             <div className="omd-template-grid">
               {templatesLoading && templates.length === 0 && <>
-                <span className="omd-sr" role="status">Loading templates…</span>
+                <span className="omd-sr" role="status">{t("templates.loading")}</span>
                 {Array.from({ length: 6 }, (_, index) => <div className="omd-template" aria-hidden="true" key={index}>
                   <div className="omd-template-art ui-skeleton" />
                   <div className="omd-template-meta"><span className="ui-skeleton omd-placeholder-line" /></div>
                 </div>)}
               </>}
-              {templates.map((t) => (
+              {templates.map((template) => (
                 <button
                   className="omd-template"
-                  key={t.id}
+                  key={template.id}
                   onClick={() => {
-                    setTemplateId(t.id);
+                    setTemplateId(template.id);
                     setPage("templates");
                   }}
                 >
                   <div className="omd-template-art">
-                    <img src={studioAssetUrl(t.posterUrl)} alt="" loading="eager" />
-                    {t.duration != null && Number.isFinite(t.duration) && <span className="omd-duration">
-                      {Math.round(t.duration)}s
+                    <img src={studioAssetUrl(template.posterUrl)} alt="" loading="eager" />
+                    {template.duration != null && Number.isFinite(template.duration) && <span className="omd-duration">
+                      {Math.round(template.duration)}s
                     </span>}
                     <span className="omd-template-play">
                       <Icon size={22} />
                     </span>
                   </div>
                   <div className="omd-template-meta">
-                    <strong>{t.title}</strong>
+                    <strong>{template.title}</strong>
                     <span>
-                      {t.hasHtmlProject
-                        ? "Editable template"
-                        : "Motion reference"}
+                      {template.hasHtmlProject
+                        ? t("template.editable")
+                        : t("template.reference")}
                     </span>
                   </div>
                 </button>
@@ -380,8 +380,8 @@ export function Dashboard({
             </div>
           </section>
           <footer className="omd-foot">
-            <span>One workspace. Your agent and your Studio.</span>
-            <span>Projects are stored locally</span>
+            <span>{t("footer.workspace")}</span>
+            <span>{t("footer.local")}</span>
           </footer>
         </main>
       )}
@@ -404,6 +404,7 @@ export async function apply(ctx: any) {
       "OpenMotion host connection is unavailable. Restart DSH and inspect its log.",
     );
   configureStudio((await response.json()).studioUrl);
+  registerWorkspaceLocale(ctx);
   registerTemplateRecommendationBody(ctx);
   const links = [
     "/openmotion-dsh/design-system/ui.css",
@@ -417,6 +418,7 @@ export async function apply(ctx: any) {
     return link;
   });
   ctx.effect(() => () => links.forEach((l) => l.remove()));
+  const activeLocale = () => ctx.locale?.getLocale().active ?? "en";
   const begin = (prompt: string) =>
     ctx.uiWorkspace.startSession(undefined, {
       prompt,
@@ -456,7 +458,8 @@ export async function apply(ctx: any) {
       {
         name: "main",
         key: "openmotion",
-        inject: () => ({ begin, openConversation, openProject }),
+        locale: WORKSPACE_NS,
+        inject: () => ({ begin, openConversation, openProject, activeLocale }),
       },
       Dashboard,
     ),
@@ -482,7 +485,7 @@ export async function apply(ctx: any) {
           id: "studio",
           order: -20,
           title: () => "OpenMotion",
-          description: () => "Edit and preview your video project",
+          description: () => ctx.locale?.translate(WORKSPACE_NS, "guide.description") ?? englishT("guide.description"),
         },
       ],
     }),
@@ -501,12 +504,12 @@ export async function apply(ctx: any) {
       });
     },
   });
-  const StudioAction = ({ openStudio }: { openStudio: () => void }) => (
+  const StudioAction = ({ openStudio, t = englishT }: { openStudio: () => void; t?: WorkspaceTranslate }) => (
     <span data-motion-ui data-theme={useHostTheme()}>
       <button
         className="ui-button ui-button--ghost ui-button--sm"
         onClick={openStudio}
-        title="Open current OpenMotion project"
+        title={t("action.openProject")}
       >
         <Icon size={15} /> OpenMotion
       </button>
@@ -515,7 +518,7 @@ export async function apply(ctx: any) {
   for (const slot of ["conversation.session.header.actions"])
     ctx.slots.inject(slot, () =>
       ctx.slots.register(
-        { name: slot, id: "openmotion-studio", inject: studioActions },
+        { name: slot, id: "openmotion-studio", locale: WORKSPACE_NS, inject: studioActions },
         StudioAction,
       ),
     );
