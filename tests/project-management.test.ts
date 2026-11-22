@@ -14,6 +14,7 @@ import { pluginRoot, nativeProjectConfig } from '../hyperframes.ts';
 import { WorkspaceStore } from '../workspace.ts';
 import { reviewComments } from '../review-comments.ts';
 import { renderNext } from '../server.ts';
+import { TaskLedger } from '../tracking/task-ledger.ts';
 
 const html = '<!doctype html><html><head><meta charset="utf-8"></head><body><div data-composition-id="main" data-start="0" data-duration="1" data-width="320" data-height="180">Editable</div><script>window.__timelines = {};</script></body></html>';
 const bundle = () => zip([
@@ -216,9 +217,67 @@ test('renderNext cancels queued exports and reconciles interrupted exports after
   const reconciled = await store.job(secondExport.id);
   assert.equal(reconciled?.state, 'failed');
   assert.equal(reconciled?.failureCode, 'EXPORT_WORKER_INTERRUPTED');
+  await assert.rejects(access(store.snapshotDirectory(secondExport.id)), /ENOENT/);
   // Subsequent worker ticks on the terminal job of a deleted project must not throw.
   await renderNext(store, pluginRoot);
 
   const followUp = await store.forProject('project').requestExport((await store.forProject('project').get()).revision);
   assert.equal(followUp.state, 'pending');
+}));
+
+test('requestExport reconciles an interrupted previous export, removes its snapshot and closes its ledger', () => fixture(async store => {
+  const events: Array<{ name: string; properties: Record<string, unknown> }> = [];
+  store.tracking = { track: (name: string, properties: Record<string, unknown>) => { events.push({ name, properties }); } } as any;
+  const project = store.forProject('project');
+  const revision = (await project.get()).revision;
+
+  // 1. Interrupted running export (worker vanished) superseded directly by a new requestExport.
+  const first = await project.requestExport(revision);
+  const claimed = await store.claimExport();
+  assert.equal(claimed?.id, first.id);
+  await store.saveJob({ ...claimed!, stage: 'rendering', workerPid: undefined });
+  await access(store.snapshotDirectory(first.id));
+
+  const second = await project.requestExport(revision);
+  assert.notEqual(second.id, first.id);
+  assert.equal(second.state, 'pending');
+
+  const firstAfter = await store.job(first.id);
+  assert.equal(firstAfter?.state, 'failed');
+  assert.equal(firstAfter?.failureCode, 'EXPORT_WORKER_INTERRUPTED');
+  await assert.rejects(access(store.snapshotDirectory(first.id)), /ENOENT/);
+
+  const firstLedger = JSON.parse(await readFile(new TaskLedger(store.directory).file, 'utf8'))[first.id];
+  assert.equal(firstLedger?.outcome, 'unknown');
+  assert.equal(firstLedger?.error_code, 'EXPORT_WORKER_INTERRUPTED');
+  assert.ok(firstLedger?.terminal_at);
+  assert.ok(events.some(e => e.name === 'export_result' && e.properties.job_id === first.id && e.properties.error_code === 'EXPORT_WORKER_INTERRUPTED'));
+  assert.ok(events.some(e => e.name === 'task_terminal' && e.properties.task_id === first.id && e.properties.error_code === 'EXPORT_WORKER_INTERRUPTED'));
+
+  // 2. Expired pending export superseded directly by a new requestExport.
+  await store.saveJob({ ...second, expiresAt: Date.now() - 1 });
+  await access(store.snapshotDirectory(second.id));
+
+  const third = await project.requestExport(revision);
+  assert.notEqual(third.id, second.id);
+  assert.equal(third.state, 'pending');
+
+  const secondAfter = await store.job(second.id);
+  assert.equal(secondAfter?.state, 'failed');
+  assert.equal(secondAfter?.failureCode, 'EXPORT_DEADLINE_EXCEEDED');
+  await assert.rejects(access(store.snapshotDirectory(second.id)), /ENOENT/);
+  const secondLedger = JSON.parse(await readFile(new TaskLedger(store.directory).file, 'utf8'))[second.id];
+  assert.equal(secondLedger?.outcome, 'unknown');
+  assert.equal(secondLedger?.error_code, 'EXPORT_DEADLINE_EXCEEDED');
+  assert.ok(secondLedger?.terminal_at);
+
+  // 3. Deadline-expired running export with a live worker keeps its snapshot intact for the worker's own cleanup.
+  const claimedThird = await store.claimExport();
+  assert.equal(claimedThird?.id, third.id);
+  await store.saveJob({ ...claimedThird!, stage: 'rendering', expiresAt: Date.now() - 1, workerPid: process.pid });
+  await access(store.snapshotDirectory(third.id));
+  const status = await project.status(third.id);
+  assert.equal(status.exportJob?.state, 'failed');
+  assert.equal(status.exportJob?.failureCode, 'EXPORT_DEADLINE_EXCEEDED');
+  await access(store.snapshotDirectory(third.id));
 }));

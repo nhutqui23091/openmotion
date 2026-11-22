@@ -59,7 +59,7 @@ export function projectPath(name: string, includeDependencies = false): string {
 function alive(pid?: number) { try { if (!pid) return false; process.kill(pid, 0); return true; } catch { return false; } }
 // A queued job expires at its deadline; a claimed job also needs a live worker.
 export function interruptedExport(job: ExportJob) {
-  return ['pending', 'running', 'cancelling'].includes(job.state) && (job.expiresAt < Date.now() || (job.state !== 'pending' && !alive(job.workerPid)));
+  return ['pending', 'running', 'cancelling'].includes(job.state) && (job.expiresAt <= Date.now() || (job.state !== 'pending' && !alive(job.workerPid)));
 }
 const exportStages = { queued: 'queued', checking: 'lint', rendering: 'render', verifying: 'verification', verified: 'finalize' } as const;
 export function trackExportResult(tracking: OmTracking | undefined, job: ExportJob) {
@@ -574,7 +574,10 @@ export class WorkspaceStore {
       if (current.revision !== expectedRevision) throw new Conflict();
       if (!current.project) throw new Error('还没有 Hyperframes 工程');
       const previous = await this.job();
-      if (previous && ['pending', 'running', 'cancelling'].includes(previous.state) && previous.expiresAt > Date.now() && (previous.state === 'pending' || alive(previous.workerPid))) throw new Error('EXPORT_BUSY: 已有导出任务正在等待或运行');
+      if (previous && ['pending', 'running', 'cancelling'].includes(previous.state)) {
+        if (!interruptedExport(previous)) throw new Error('EXPORT_BUSY: 已有导出任务正在等待或运行');
+        await this.reconcileInterruptedExportLocked(previous, this.tracking);
+      }
       const { audio, ...identity } = options;
       if (identity.compositionPath !== undefined) {
         identity.compositionPath = projectPath(identity.compositionPath);
@@ -618,22 +621,26 @@ export class WorkspaceStore {
   }
   /** Close an export whose worker vanished or whose deadline passed; exactly one caller owns the transition. */
   async reconcileInterruptedExport(seen: ExportJob, tracking = this.tracking): Promise<{ job: ExportJob | null; reconciled: boolean }> {
-    return this.lock(async () => {
-      const job = await this.job(seen.id);
-      if (!job || !interruptedExport(job)) return { job, reconciled: false };
-      job.failureStage = Object.hasOwn(exportStages, job.stage ?? '') ? exportStages[job.stage as keyof typeof exportStages] : 'unknown';
-      job.failureCode = job.expiresAt < Date.now() ? 'EXPORT_DEADLINE_EXCEEDED' : 'EXPORT_WORKER_INTERRUPTED';
-      job.state = 'failed'; job.error = '后台渲染已中断或超时，请重新导出'; job.terminalAt = Date.now(); job.observedOutcome = 'unknown';
-      await this.saveJob(job);
-      const ledger = await this.reconcileTask(job);
-      trackExportResult(tracking, job);
-      // Whichever caller owns this transition states the terminal evidence once, so a read never closes a task silently.
-      tracking?.track('task_terminal', { task_id: job.id, task_type: 'export', ...(job.projectId ? { project_id: job.projectId } : {}),
-        ...(job.workId ? { run_id: job.workId } : {}), outcome: 'unknown', applied: 'unknown', error_code: job.failureCode,
-        terminal_at: ledger?.terminal_at ?? new Date(job.terminalAt ?? Date.now()).toISOString() }, undefined, 'worker',
-        validHostContext(job.trackingHost) ? job.trackingHost : undefined);
-      return { job, reconciled: true };
-    });
+    return this.lock(() => this.reconcileInterruptedExportLocked(seen, tracking));
+  }
+  private async reconcileInterruptedExportLocked(seen: ExportJob, tracking = this.tracking): Promise<{ job: ExportJob | null; reconciled: boolean }> {
+    const job = await this.job(seen.id);
+    if (!job || !interruptedExport(job)) return { job, reconciled: false };
+    // Keep the snapshot intact while a live worker is still reading it; its own cleanup removes it.
+    const removeSnapshot = job.state === 'pending' || !alive(job.workerPid);
+    job.failureStage = Object.hasOwn(exportStages, job.stage ?? '') ? exportStages[job.stage as keyof typeof exportStages] : 'unknown';
+    job.failureCode = job.expiresAt <= Date.now() ? 'EXPORT_DEADLINE_EXCEEDED' : 'EXPORT_WORKER_INTERRUPTED';
+    job.state = 'failed'; job.error = '后台渲染已中断或超时，请重新导出'; job.terminalAt = Date.now(); job.observedOutcome = 'unknown';
+    await this.saveJob(job);
+    if (removeSnapshot) await rm(this.snapshotDirectory(job.id), { recursive: true, force: true }).catch(() => {});
+    const ledger = await this.reconcileTask(job);
+    trackExportResult(tracking, job);
+    // Whichever caller owns this transition states the terminal evidence once, so a read never closes a task silently.
+    tracking?.track('task_terminal', { task_id: job.id, task_type: 'export', ...(job.projectId ? { project_id: job.projectId } : {}),
+      ...(job.workId ? { run_id: job.workId } : {}), outcome: 'unknown', applied: 'unknown', error_code: job.failureCode,
+      terminal_at: ledger?.terminal_at ?? new Date(job.terminalAt ?? Date.now()).toISOString() }, undefined, 'worker',
+      validHostContext(job.trackingHost) ? job.trackingHost : undefined);
+    return { job, reconciled: true };
   }
   // An interrupted export is reconciled here, so its accepted task still gets a terminal outcome.
   private async reconcileTask(job: ExportJob) {
