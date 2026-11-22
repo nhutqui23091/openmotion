@@ -27,6 +27,29 @@ const edit = (service: Phase1Service, p: any, content: string) => service.call('
   expectedVersionId: p.version.versionId, files: [{ path: 'note.txt', content }],
 });
 
+test('versioned edits reject a differently cased index.html without changing project history', { skip: !['win32', 'darwin'].includes(process.platform) }, () => fixture(async store => {
+  const service = api(store);
+  const created = await create(service);
+  const project = store.forProject(created.projectId);
+  const original = await project.get();
+  const before = await service.call('openmotion_get_project', { projectId: created.projectId });
+  const content = original.project!.html + '\n<!-- entry edit -->';
+  const editEntry = (entry: string) => service.call('openmotion_edit_project', {
+    requestId: crypto.randomUUID(), projectId: created.projectId, expectedRevision: before.revision,
+    expectedVersionId: before.currentVersionId, files: [{ path: entry, content }],
+  });
+
+  await assert.rejects(editEntry('INDEX.html'), /INVALID_PROJECT_ENTRY_PATH:.*index\.html/);
+  assert.deepEqual(await project.get(), original);
+  const after = await service.call('openmotion_get_project', { projectId: created.projectId });
+  assert.equal(after.currentVersionId, before.currentVersionId);
+  assert.equal(after.currentVersionNumber, before.currentVersionNumber);
+
+  const updated = await editEntry('index.html');
+  assert.equal(updated.version.versionNumber, before.currentVersionNumber + 1);
+  assert.equal((await project.get()).project?.html, content);
+}, false));
+
 test('guarded preview accepts native ID stamping and returns its current version on first open and after edits', () => fixture(async store => {
   const service = new Phase1Service(store, pluginRoot, {
     origin: () => 'http://127.0.0.1:4173', nativeUrl: () => undefined,

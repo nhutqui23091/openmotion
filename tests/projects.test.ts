@@ -177,3 +177,14 @@ test('a differently cased entry file does not satisfy the create guard', { skip:
   const initial = await store.get();
   await assert.rejects(store.writeFiles(initial.revision, [{ path: 'Index.html', content: '<html></html>' }]), /index\.html/);
 }, false));
+
+test('workspace writes reject a differently cased index.html in an existing project', { skip: !['win32', 'darwin'].includes(process.platform) }, () => fixture(async store => {
+  const original = await store.writeFiles((await store.get()).revision, [{ path: 'index.html', content: '<html>Original</html>' }]);
+  await assert.rejects(store.writeFiles(original.revision, [{ path: 'INDEX.html', content: '<html>Edited</html>' }]), /INVALID_PROJECT_ENTRY_PATH:.*index\.html/);
+  assert.deepEqual(await store.get(), original);
+
+  const updated = await store.writeFiles(original.revision, [{ path: 'index.html', content: '<html>Edited</html>' }]);
+  assert.notEqual(updated.revision, original.revision);
+  assert.equal(updated.project?.entry, 'index.html');
+  assert.equal(updated.project?.html, '<html>Edited</html>');
+}, false));

@@ -20,7 +20,7 @@ import type { Project as LegacyProject } from './shared/legacy.ts';
 import { exportExpectation } from './shared/export-expectation.ts';
 import type { ExportExpectation } from './shared/export-spec.ts';
 import { validateInstruction, type ProjectConversation, type ProjectMessage } from './shared/conversation.ts';
-import { firstFoldedDuplicate, foldsProjectNames, portableNameProblem } from './shared/project-name.ts';
+import { assertEntryWritePath, firstFoldedDuplicate, foldsProjectNames, portableNameProblem } from './shared/project-name.ts';
 import { creationMode, type CreativeSession, type SessionDetail } from './shared/session.ts';
 import { templateConfig } from './shared/template-config.ts';
 import { copyTemplate, welcomeTemplateId } from './template-library.ts';
@@ -482,6 +482,7 @@ export class WorkspaceStore {
       const current = await this.get();
       if (current.revision !== expectedRevision) throw new Conflict();
       if (!current.project && !exact.has('index.html')) throw new Error('新工程必须包含 index.html');
+      for (const file of edits) assertEntryWritePath(file.path);
       const paths = await Promise.all(edits.map(file => this.safePath(file.path)));
       if ((await this.get()).revision !== expectedRevision) throw new Conflict();
       for (let i = 0; i < edits.length; i++) await atomic(paths[i], edits[i].content);

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { WorkspaceStore, projectPath } from './workspace.ts';
 import type { SourceFile } from './workspace.ts';
+import { assertEntryWritePath } from './shared/project-name.ts';
 
 export async function atomicJson(file: string, data: unknown) {
   await mkdir(path.dirname(file), { recursive: true });
@@ -167,7 +168,11 @@ export class ProjectVersions {
     options: { label: string; restoredFromVersionId?: string }) {
     const current = await this.current(history);
     if (current.revision !== expectedRevision || expectedVersionId && current.versionId !== expectedVersionId) throw new Error(`VERSION_CONFLICT: 工程已更新。当前 revision=${current.revision}，versionId=${current.versionId}。请调用 openmotion_get_project 读取最新内容后，用这两个值重试。`);
-    const paths = changes.map(change => projectPath(change.path));
+    const paths = changes.map(change => {
+      const name = projectPath(change.path);
+      if (!change.remove) assertEntryWritePath(name);
+      return name;
+    });
     if (paths.some((name, i) => paths.some((other, j) => i !== j && (name === other || name.startsWith(other + '/'))))) throw new Error('CONFLICTING_FILE_PATHS');
     const window = await history.beginWindow(actor, options.label, { exclusive: true, idleMs: 600_000 });
     const transaction = path.join(this.root, 'transactions', crypto.randomUUID());

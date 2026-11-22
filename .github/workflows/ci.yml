@@ -195,6 +195,9 @@ jobs:
       - name: Check ownership recovery, read verification and immutable snapshots
         if: steps.scope.outputs.full == 'true'
         run: node --experimental-strip-types --test tests/process-lock.test.ts tests/version-reads.test.ts tests/capture-retry.test.ts tests/hyperframes-startup.test.ts tests/command-lifecycle.test.ts tests/windows-install-recovery.test.ts
+      - name: Check project entry writes
+        if: steps.scope.outputs.full == 'true'
+        run: node --experimental-strip-types --test --test-concurrency=1 --test-name-pattern 'reject a differently cased index[.]html' tests/projects.test.ts tests/phase1.test.ts
 
   studio:
     name: Studio regression (${{ matrix.shard }}/2)

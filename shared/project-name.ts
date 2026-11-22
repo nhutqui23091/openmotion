@@ -17,6 +17,12 @@ export function foldProjectName(name: string): string { return name.normalize('N
 
 export const foldsProjectNames = process.platform === 'win32' || process.platform === 'darwin';
 
+export function assertEntryWritePath(name: string) {
+  if (foldsProjectNames && name !== 'index.html' && foldProjectName(name) === 'index.html') {
+    throw new Error('INVALID_PROJECT_ENTRY_PATH: Use index.html for the project entry file.');
+  }
+}
+
 /** The first name that collides with an earlier one once folding is applied, or null. */
 export function firstFoldedDuplicate(names: string[], fold: boolean): string | null {
   const seen = new Set<string>();
