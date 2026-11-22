@@ -158,11 +158,18 @@ export class WorkspaceStore {
     return this.lock(async () => {
       const catalog = this.projectCatalog(), existing = catalog.sessions!.find(item => item.id === id);
       if (existing) {
+        // The create routes forward caller JSON into this method, so the scope rule belongs here
+        // rather than on one route: replaying an existing id returns that session with its messages,
+        // and a project-scoped store may only replay a session it may address.
+        if (this.selectedProjectId !== undefined && !this.sessionInProject(id)) throw new Error('会话不存在');
         const session = await this.session(id);
         if (session.title !== title || session.mode !== mode.id || session.templateId !== input.templateId || session.messages[0]?.content !== instruction) throw new Error('会话编号已使用');
         return session;
       }
-      const session: CreativeSession = { id, title, mode: mode.id, templateId: input.templateId, artifacts: [], createdAt: Date.now(), openedAt: Date.now() };
+      // A project-scoped caller owns the session it creates, including before the first artifact
+      // exists, so the documented create-then-attach flow keeps working under a project scope.
+      const session: CreativeSession = { id, title, mode: mode.id, templateId: input.templateId, artifacts: [], createdAt: Date.now(), openedAt: Date.now(),
+        ...(this.selectedProjectId === undefined ? {} : { createdByProject: this.selectedProjectId }) };
       const messages: ProjectMessage[] = instruction ? [{ id: crypto.randomUUID(), role: 'user', content: instruction, createdAt: Date.now() }] : [];
       catalog.sessions!.unshift(session); catalog.activeSessionId = id;
       const file = path.join(this.directory, 'sessions', id + '.json');
@@ -221,6 +228,12 @@ export class WorkspaceStore {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ...session, messages: [] };
       throw error;
     }
+  }
+  /** A project-scoped caller may only reach sessions it created or that carry one of its artifacts. */
+  sessionInProject(id: string, projectId = this.projectId) {
+    const session = this.projectCatalog().sessions?.find(item => item.id === id);
+    if (!session) return false;
+    return session.createdByProject === projectId || session.artifacts.some(artifact => artifact.projectId === projectId);
   }
   async conversation(projectId: string): Promise<ProjectConversation> {
     const session = this.projectCatalog().sessions!.find(item => item.artifacts.some(artifact => artifact.projectId === projectId));

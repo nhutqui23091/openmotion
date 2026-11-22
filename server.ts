@@ -359,6 +359,9 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
     if (host && !['localhost', '127.0.0.1', '[::1]'].includes(new URL('http://' + host).hostname)) return json(res, 403, { error: '只允许本地访问' });
     if (!['GET', 'HEAD'].includes(req.method || '') && (!req.headers.origin || new URL(req.headers.origin).host !== host)) return json(res, 403, { error: '仅允许当前预览页面发起修改' });
     const projectHeader = req.headers['x-opendesign-project-id'];
+    // Only the authenticated header names a project scope. The ?projectId= query below also selects a
+    // project, but it is the in-app navigation Studio uses to switch artifacts, not a credential.
+    const projectScoped = projectHeader !== undefined;
     if (projectHeader !== undefined) {
       if (!context.editorToken || req.headers.authorization !== `Bearer ${context.editorToken}` || typeof projectHeader !== 'string') return json(res, 403, { error: '工程范围需要私有编辑器凭据' });
       store = store.forProject(projectHeader);
@@ -676,18 +679,37 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
       offset: Number(url.searchParams.get('offset') || 0), limit: Number(url.searchParams.get('limit') || 6), grouped: url.searchParams.get('grouped') === 'true',
       covered: url.searchParams.get('covered') === 'true',
     }));
-    if (motionRequest && url.pathname === '/api/projects' && req.method === 'GET') return json(res, 200, store.projectCatalog());
+    // A project-scoped caller owns one project, so the catalog it can list shows only the sessions it
+    // may address. The unscoped workspace response stays the whole catalog.
+    const catalogList = () => {
+      const catalog = store.projectCatalog();
+      if (!projectScoped) return catalog;
+      const sessions = catalog.sessions?.filter(session => store.sessionInProject(session.id));
+      const activeSessionId = sessions?.some(session => session.id === catalog.activeSessionId) ? catalog.activeSessionId : sessions?.[0]?.id;
+      return { ...catalog, sessions, activeSessionId };
+    };
+    if (motionRequest && url.pathname === '/api/projects' && req.method === 'GET') return json(res, 200, catalogList());
     if (motionRequest && url.pathname === '/api/modes' && req.method === 'GET') return json(res, 200, { modes: creationModes, viewers: artifactViewers });
     if (motionRequest && url.pathname === '/api/sessions' && req.method === 'GET') {
-      const { sessions, activeSessionId } = store.projectCatalog(); return json(res, 200, { sessions, activeSessionId });
+      const { sessions, activeSessionId } = catalogList(); return json(res, 200, { sessions, activeSessionId });
     }
     if (motionRequest && url.pathname === '/api/sessions' && req.method === 'POST') {
-      const session = await createSession(store, await input(req));
+      const data = await input(req);
+      // createSession replays an existing session id and returns it with its messages, so a scoped
+      // caller must not be able to name another project's session here. A new client-generated id
+      // still creates a session inside the caller's scope.
+      const replayId = typeof data.id === 'string' ? data.id : undefined;
+      if (projectScoped && replayId && store.projectCatalog().sessions?.some(item => item.id === replayId) && !store.sessionInProject(replayId)) {
+        return json(res, 404, { error: '会话不存在' });
+      }
+      const session = await createSession(store, data);
       return json(res, 201, { sessionId: session.id, session });
     }
     const browserRoute = motionRequest ? url.pathname.match(/^\/api\/sessions\/([a-z0-9-]+)\/browser\/([a-z0-9-]{1,80})(?:\/(events|command|resize|input))?$/) : null;
     if (browserRoute) {
       const [, sessionId, tabId, action] = browserRoute;
+      // A project-scoped caller owns one project, so another project's session is not addressable here.
+      if (projectScoped && !store.sessionInProject(sessionId)) return json(res, 404, { error: '会话不存在' });
       await store.session(sessionId);
       if (!context.runtimeRoot) throw new Error('浏览器服务尚未就绪');
       const browser = context.browser ??= new WorkspaceBrowser(context.runtimeRoot);
@@ -708,6 +730,7 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
     const sessionRoute = motionRequest ? url.pathname.match(/^\/api\/sessions\/([a-z0-9-]+)(?:\/(messages|artifacts|open))?$/) : null;
     if (sessionRoute) {
       const [, id, action] = sessionRoute;
+      if (projectScoped && !store.sessionInProject(id)) return json(res, 404, { error: '会话不存在' });
       if (req.method === 'GET' && !action) return json(res, 200, await store.session(id));
       if (req.method === 'PATCH' && !action) return json(res, 200, await store.renameSession(id, (await input(req)).title));
       if (req.method === 'POST' && action === 'messages') { const data = await input(req); return json(res, 201, await store.addSessionMessage(id, data.id, data.content, data.role)); }
@@ -720,6 +743,10 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
           if (!selectable) throw new Error('PROJECT_TRASHED: 工程已在回收站');
           const artifact = data.projectId ? selectable.artifacts.find(item => item.projectId === data.projectId) : selectable.artifacts.find(item => item.id === selectable.activeArtifactId) ?? selectable.artifacts[0];
           if (!artifact) throw new Error('该产物不属于此会话');
+          // A session can carry artifacts of several projects. A scoped caller may open its own
+          // artifact, or any artifact of a session it created, but not another project's artifact.
+          if (projectScoped && session.createdByProject !== store.projectId
+            && artifact.projectId !== store.projectId) return json(res, 404, { error: '会话不存在' });
           return json(res, 200, await openProject(store, context, new URL(editorUrl).origin, data.expectedRevision, { projectId: artifact.projectId }, data.expectedProjectId));
         }
         return json(res, 201, await createArtifact(store, context, new URL(editorUrl).origin, session, data));
@@ -732,10 +759,16 @@ export async function handler(req: IncomingMessage, res: ServerResponse, store =
       return json(res, 201, await legacyCreation(store, context, new URL(editorUrl).origin, { ...data, title, instruction }));
     }
     const conversation = motionRequest ? url.pathname.match(/^\/api\/projects\/([a-z0-9-]+)\/conversation$/) : null;
-    if (conversation && req.method === 'GET') return json(res, 200, await store.conversation(conversation[1]));
-    if (conversation && req.method === 'POST') {
-      const data = await input(req);
-      return json(res, 201, await store.addProjectMessage(conversation[1], data.id, data.content));
+    if (conversation) {
+      // A conversation is stored in the session that owns the project's artifact, so naming another
+      // project here would read or append to that project's session. A scoped caller may address its
+      // own project only; the workspace-level internal path keeps its previous behaviour.
+      if (projectScoped && conversation[1] !== store.projectId) return json(res, 404, { error: '工程不存在' });
+      if (req.method === 'GET') return json(res, 200, await store.conversation(conversation[1]));
+      if (req.method === 'POST') {
+        const data = await input(req);
+        return json(res, 201, await store.addProjectMessage(conversation[1], data.id, data.content));
+      }
     }
     const renameProject = motionRequest ? url.pathname.match(/^\/api\/projects\/([a-z0-9-]+)$/) : null;
     if (renameProject && req.method === 'PATCH') {

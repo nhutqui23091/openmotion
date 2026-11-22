@@ -9,7 +9,7 @@ export type ArtifactIdentity = { id: string; title: string; templateId?: string 
 export type MotionArtifact = ArtifactIdentity & { kind: 'motion-project'; projectId: string };
 // Extend this discriminated union when an additional viewer/resource type is implemented.
 export type SessionArtifact = MotionArtifact;
-export type CreativeSession = { id: string; title: string; mode: CreationMode; artifacts: SessionArtifact[]; activeArtifactId?: string; createdAt?: number; openedAt?: number; templateId?: string };
+export type CreativeSession = { id: string; title: string; mode: CreationMode; artifacts: SessionArtifact[]; activeArtifactId?: string; createdAt?: number; openedAt?: number; templateId?: string; createdByProject?: string };
 export type SessionDetail = CreativeSession & { messages: ProjectMessage[] };
 /** Hide a session with only trashed projects without dropping drafts or saved ownership. */
 export function availableSession<T extends CreativeSession>(session: T, trashed: ReadonlySet<string>): T | undefined {

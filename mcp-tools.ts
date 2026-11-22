@@ -87,11 +87,20 @@ function viewerLinks(origin: string, sessionId: string, projectId?: string, embe
   const embeddedPreviewUrl = projectId ? origin + sessionPath(sessionId, projectId, { embedded: true }) : undefined;
   return { sessionUrl, embeddedPreviewUrl, previewUrl: embedded && embeddedPreviewUrl ? embeddedPreviewUrl : sessionUrl };
 }
-async function designRequest(origin: string, path: string, data: object, store: WorkspaceStore) {
-  const response = await fetch(`${origin}/design-api${path}`, { method: 'POST', headers: await editorHeaders(store, origin), body: JSON.stringify(data) });
+async function designRequest(origin: string, path: string, data: object, store: WorkspaceStore, scoped = true) {
+  const response = await fetch(`${origin}/design-api${path}`, { method: 'POST', headers: await editorHeaders(store, origin, scoped), body: JSON.stringify(data) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '会话操作失败');
   return result;
+}
+/**
+ * The workspace authority a headerless request is served by. The internal session and template calls
+ * act for the workspace rather than for the connection's project, so they compare the version they
+ * send against this store instead of the connection's selection.
+ */
+function workspaceStore(store: WorkspaceStore) {
+  const catalog = store.projectCatalog();
+  return catalog.projects.some(project => project.id === catalog.activeId && !project.trashedAt) ? store.forProject(catalog.activeId) : store;
 }
 export async function callTool(name: string, args: Record<string, unknown> = {}, store = new WorkspaceStore(), tracking?: OmTracking) {
   name = legacyToolName(name);
@@ -112,15 +121,15 @@ export async function callTool(name: string, args: Record<string, unknown> = {},
   if (name === 'design_create_session') {
     creationMode(args.mode ?? 'motion');
     const opened = await openPreview(store), origin = new URL(opened.previewUrl).origin;
-    const result = await designRequest(origin, '/sessions', args, store);
+    const result = await designRequest(origin, '/sessions', args, store, false);
     if (args.createArtifact === false) return { ...result, ...viewerLinks(origin, result.sessionId) };
     if (result.session.artifacts.length) {
       const artifact = result.session.artifacts.find((item: { id: string }) => item.id === result.session.activeArtifactId) ?? result.session.artifacts[0];
       return { ...result, projectId: artifact.projectId, ...viewerLinks(origin, result.sessionId, artifact.projectId, args.embedded !== false) };
     }
     try {
-      const current = await store.status();
-      const artifact = await designRequest(origin, `/sessions/${result.sessionId}/artifacts`, { expectedRevision: current.revision, expectedProjectId: current.projectId }, store);
+      const current = await workspaceStore(store).status();
+      const artifact = await designRequest(origin, `/sessions/${result.sessionId}/artifacts`, { expectedRevision: current.revision, expectedProjectId: current.projectId }, store, false);
       return { ...artifact, session: await store.session(result.sessionId), ...viewerLinks(origin, result.sessionId, artifact.projectId, args.embedded !== false) };
     } catch (error) { return { ...result, artifactError: (error as Error).message, ...viewerLinks(origin, result.sessionId) }; }
   }
@@ -198,18 +207,21 @@ export async function callTool(name: string, args: Record<string, unknown> = {},
   if (name === 'design_create_artifact') {
     if (typeof args.sessionId !== 'string') throw new Error('需要 sessionId');
     await store.session(args.sessionId);
-    const current = await store.status(), opened = await ensureService(store), origin = new URL(opened.previewUrl).origin;
-    const result = await designRequest(origin, `/sessions/${args.sessionId}/artifacts`, { ...args, expectedProjectId: current.projectId }, store);
+    if ((await store.status()).revision !== args.expectedRevision) throw new (await import('./workspace.ts')).Conflict();
+    const workspace = workspaceStore(store), current = await workspace.status(), opened = await ensureService(store), origin = new URL(opened.previewUrl).origin;
+    const result = await designRequest(origin, `/sessions/${args.sessionId}/artifacts`, { ...args, expectedRevision: current.revision, expectedProjectId: current.projectId }, store, false);
     return { ...result, session: await store.session(args.sessionId), ...viewerLinks(origin, args.sessionId, result.projectId, args.embedded !== false) };
   }
   if (name === 'design_open_artifact') {
     if (typeof args.sessionId !== 'string' || typeof args.artifactId !== 'string') throw new Error('需要 sessionId 和 artifactId');
     const session = await store.session(args.sessionId), artifact = session.artifacts.find(item => item.id === args.artifactId);
     if (!artifact) throw new Error('该产物不属于此会话');
-    const current = await store.status();
-    if (current.revision !== args.expectedRevision) throw new (await import('./workspace.ts')).Conflict();
+    // The caller's revision guards its own view; the switch itself is served by the workspace
+    // authority, so it carries that store's version and identity.
+    if ((await store.status()).revision !== args.expectedRevision) throw new (await import('./workspace.ts')).Conflict();
+    const current = await workspaceStore(store).status();
     const opened = await ensureService(store), origin = new URL(opened.previewUrl).origin;
-    const response = await fetch(`${origin}/motion-api/sessions/${session.id}/open`, { method: 'POST', headers: await editorHeaders(store, origin), body: JSON.stringify({ projectId: artifact.projectId, expectedRevision: args.expectedRevision, expectedProjectId: current.projectId }) });
+    const response = await fetch(`${origin}/motion-api/sessions/${session.id}/open`, { method: 'POST', headers: await editorHeaders(store, origin, false), body: JSON.stringify({ projectId: artifact.projectId, expectedRevision: current.revision, expectedProjectId: current.projectId }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '打开产物失败');
     return { ...result, sessionId: session.id, artifactId: artifact.id, ...viewerLinks(origin, session.id, artifact.projectId, args.embedded !== false) };
@@ -232,8 +244,9 @@ export async function callTool(name: string, args: Record<string, unknown> = {},
     const sessionId = typeof args.sessionId === 'string' ? args.sessionId : store.selectedProjectId === undefined ? store.projectCatalog().activeSessionId! : store.projectCatalog().sessions!.find(session => session.artifacts.some(artifact => artifact.projectId === store.projectId))!.id;
     await store.session(sessionId);
     if ((await store.get()).revision !== args.expectedRevision) throw new (await import('./workspace.ts')).Conflict();
+    const workspace = workspaceStore(store), current = await workspace.status();
     const opened = await ensureService(store);
-    const response = await fetch(`${opened.previewUrl}/motion-api/sessions/${sessionId}/artifacts`, { method: 'POST', headers: await editorHeaders(store, opened.previewUrl), body: JSON.stringify({ expectedRevision: args.expectedRevision, expectedProjectId: store.projectId, templateId: template.id }) });
+    const response = await fetch(`${opened.previewUrl}/motion-api/sessions/${sessionId}/artifacts`, { method: 'POST', headers: await editorHeaders(store, opened.previewUrl, false), body: JSON.stringify({ expectedRevision: current.revision, expectedProjectId: current.projectId, templateId: template.id }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '打开模板失败');
     store = store.forProject(result.projectId);

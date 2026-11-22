@@ -116,11 +116,13 @@ export async function ensureEditor(directory: string, mcpTool?: string): Promise
   throw new Error('编辑器未就绪，请查看 .editor-runtime/editor.log；未删除锁或停止其他进程');
 }
 
-export async function editorHeaders(store: WorkspaceStore, origin: string): Promise<Record<string, string>> {
+export async function editorHeaders(store: WorkspaceStore, origin: string, scoped = true): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Origin: origin };
   if (sharedEditorEnabled) {
     const registry = await readEditor(store.directory);
-    if (registry && new URL(registry.endpoint).origin === origin) Object.assign(headers, { Authorization: `Bearer ${registry.token}`, 'X-OpenDesign-Project-Id': store.projectId });
+    // Internal callers act for the workspace rather than for one project, and a session can carry
+    // artifacts of several projects, so only project-scoped requests name a project here.
+    if (registry && new URL(registry.endpoint).origin === origin) Object.assign(headers, { Authorization: `Bearer ${registry.token}`, ...(scoped ? { 'X-OpenDesign-Project-Id': store.projectId } : {}) });
   }
   return headers;
 }

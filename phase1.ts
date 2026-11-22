@@ -461,7 +461,7 @@ export class Phase1Service {
     }
     if (name === 'motion_get_project') {
       if (args.cursor || args.trashed !== undefined) throw new ToolInputError('cursor and trashed are for project lists', args.cursor ? 'cursor' : 'trashed', 'invalid_combination');
-      if (args.sessionId && !this.store.projectCatalog().sessions!.some(session => session.id === args.sessionId && session.artifacts.some(artifact => artifact.projectId === args.projectId))) throw new Error('PROJECT_SESSION_MISMATCH');
+      if (args.sessionId && !this.store.sessionInProject(args.sessionId, args.projectId)) throw new Error('PROJECT_SESSION_MISMATCH');
       if (args.workId) {
         if (args.file || args.exportJobId || args.expectedRevision) throw new ToolInputError('workId cannot combine file or export queries', 'workId', 'invalid_combination');
         this.store.forProject(args.projectId);
@@ -566,7 +566,7 @@ export class Phase1Service {
       const projectId = args.projectId ?? session?.artifacts.find(item => item.id === session.activeArtifactId)?.projectId ?? session?.artifacts.at(-1)?.projectId;
       if (!projectId) throw new Error('PROJECT_NOT_BOUND: 请传入 projectId 或已绑定的 OpenMotion sessionId');
       const scoped = this.store.forProject(projectId);
-      if (session && !session.artifacts.some(artifact => artifact.projectId === projectId)) throw new Error('PROJECT_SESSION_MISMATCH');
+      if (session && !this.store.sessionInProject(session.id, projectId)) throw new Error('PROJECT_SESSION_MISMATCH');
       const before = await this.detail(projectId);
       if (args.expectedRevision && args.expectedRevision !== before.revision || args.expectedVersionId && args.expectedVersionId !== before.currentVersionId) throw new Error('VERSION_CONFLICT');
       let stampedRevision = before.revision;
