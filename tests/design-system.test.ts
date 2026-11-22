@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { compile } from 'tailwindcss';
 import { designTokens, renderDesignTokens } from '../scripts/design-tokens.ts';
 import { publicDesignFiles, resolveDesignSystemFile } from '../packages/design-system/index.js';
+import { providerIconFiles } from '../packages/design-system/provider-icons.js';
+import { platformIconFiles } from '../packages/design-system/platform-icons.js';
 import { serveEditorFile } from '../editor-server.ts';
 import { loadStylesheet, STYLES_DIR } from '../studio/src/styles/styleSources.ts';
 
@@ -80,6 +82,24 @@ test('public package assets and their transitive imports work through both HTTP 
   for (const file of ['package.json', 'index.js', 'loading.ts', 'brand/BRANDKIT.md', '../package.json', '%2e%2e%2fpackage.json']) {
     assert.equal(resolveDesignSystemFile(`/design-system/${file}`), undefined, file);
   }
+});
+
+test('every artwork file on disk is declared, served and self-contained static SVG', async () => {
+  const declared = new Set([...providerIconFiles, ...platformIconFiles]);
+  let checked = 0;
+  for (const directory of ['providers/', 'platforms/']) {
+    const entries = await readdir(new URL(directory, packageRoot), { recursive: true });
+    for (const entry of entries.filter(file => file.endsWith('.svg'))) {
+      const file = directory + entry.split(path.sep).join('/');
+      assert.ok(declared.has(file), `${file} is not declared in provider-icons.js or platform-icons.js`);
+      assert.ok(publicDesignFiles.includes(file), `${file} must be served through the design-system prefix`);
+      const svg = await readFile(new URL(file, packageRoot), 'utf8');
+      assert.match(svg, /^<svg\b/, file);
+      assert.doesNotMatch(svg, /<script|<foreignObject|\son[a-z]+\s*=|(?:href|xlink:href)=["'](?:https?:|\/\/)/i, `${file} must remain self-contained static artwork`);
+      checked++;
+    }
+  }
+  assert.equal(checked, declared.size, 'the declared artwork list must match the files on disk exactly');
 });
 
 test('the source package remains independent of workspaces and application modules', async () => {

@@ -28,6 +28,16 @@ export async function checkDesign() {
     assert.match(svg, /^<svg\b/);
     assert.doesNotMatch(svg, /<script|<foreignObject|\son[a-z]+\s*=|(?:href|xlink:href)=["'](?:https?:|\/\/)/i, `${file} must remain self-contained static artwork.`);
   }
+  // The declared lists are the served and distributed set, so an artwork file that exists without a
+  // declaration would silently never ship and would also escape the self-containment rules above.
+  const declaredArtwork = new Set([...providerIconFiles, ...platformIconFiles]);
+  for (const directory of ['providers/', 'platforms/']) {
+    for (const entry of await readdir(new URL('packages/design-system/' + directory, root), { recursive: true })) {
+      if (!entry.endsWith('.svg')) continue;
+      const file = directory + entry.split(path.sep).join('/');
+      assert.ok(declaredArtwork.has(file), `${file} exists without a provider-icons.js or platform-icons.js entry, so it is neither served nor distributed.`);
+    }
+  }
   for (const license of ['providers/lobe-icons-LICENSE.txt', 'providers/cherry-ui-LICENSE.txt']) {
     assert.ok(designSystemRuntimeFiles.includes(license));
     assert.match(await readFile(new URL('packages/design-system/' + license, root), 'utf8'), /MIT License/);
