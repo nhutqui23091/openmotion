@@ -1,0 +1,20 @@
+version: 2
+
+# Keep the workflow action references current. The repository pins every action
+# by tag, so an update PR is the review point where a moved or retagged action
+# becomes visible. Dependency updates for npm are deliberately not enabled:
+# `package.json`, `package-lock.json` and `scripts/runtime-lock.json` are
+# version-pinned on purpose and move through the release workflow.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - '*'
