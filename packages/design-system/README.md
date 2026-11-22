@@ -37,7 +37,7 @@ The source-save API is confined to this loopback server and accepts only existin
 
 Application-hosted `/design-system` remains a read-only static presentation of the same package, with draft preview/export but no source-write API. Saved styles reach downstream source consumers through their normal refresh, hot reload or rebuild; the workbench does not control those applications. Prebuilt installations require a new application build to incorporate source changes.
 
-Run `npm run design:test` at the repository root, or `npm test` inside this package, for source-save, conflict, HTTP boundary and standalone-copy checks. Also run `npm run design:check` and the applicable repository validation before submitting changes; contrast acceptance and browser inspection remain separate from source-save validation.
+Run `npm run design:test` at the repository root, or `npm test` inside this package, for source-save, conflict, HTTP boundary and standalone-copy checks. The symlink case is skipped on a host that cannot create symbolic links, such as Windows without Developer Mode or elevation, so run this check on macOS, Linux or CI when reviewing the symlink guard. Also run `npm run design:check` and the applicable repository validation before submitting changes; contrast acceptance and browser inspection remain separate from source-save validation.
 
 ## Consume the system
 
