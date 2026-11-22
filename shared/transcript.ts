@@ -55,6 +55,9 @@ export function normalizeTranscript(body: any, offset = 0, duration = 86400): Tr
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Provider returned an invalid transcript');
   const stamp = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= duration + 1 ? Math.min(value, duration) + offset : undefined;
   const words: TranscriptWord[] = Array.isArray(body.words) ? body.words.map((word: any) => ({ text: word.word ?? word.text, start: stamp(word.start), end: stamp(word.end) })) : [];
+  // Whisper times some words with no duration (start equal to end), and a word past the end of a chunk is clamped to none.
+  // Such a word stays in the text but has no clock, so it is left out of the word timings instead of failing the transcript.
+  const instant = (word: TranscriptWord) => word.start !== undefined && word.start === word.end;
   const rows: TranscriptSegment[] = [];
   if (Array.isArray(body.segments) && body.segments.length) {
     for (const segment of body.segments) {
@@ -63,11 +66,19 @@ export function normalizeTranscript(body: any, offset = 0, duration = 86400): Tr
       if (start === undefined || end === undefined || end <= start) throw new Error('Provider returned invalid segment timestamps');
       rows.push({ id: `segment-${rows.length + 1}`, text: segment.text, start, end,
         ...(segment.speaker != null ? { speaker: String(segment.speaker) } : {}),
-        ...(words.length ? { words: words.filter(word => word.start >= start && word.end <= end) } : {}) });
+        ...(words.length ? { words: words.filter(word => word.start >= start && word.end <= end && !instant(word)) } : {}) });
     }
   } else if (words.length) {
     let group: TranscriptWord[] = [];
-    const flush = () => { if (group.length) rows.push({ id: `segment-${rows.length + 1}`, text: group.map(word => word.text).join(' ').replace(/([\p{Script=Han}])\s+(?=[\p{Script=Han}])/gu, '$1'), start: group[0].start, end: group.at(-1)!.end, words: group }); group = []; };
+    const flush = () => {
+      if (group.length) {
+        const row = { id: `segment-${rows.length + 1}`, text: group.map(word => word.text).join(' ').replace(/([\p{Script=Han}])\s+(?=[\p{Script=Han}])/gu, '$1') };
+        const span = { ...row, start: group[0].start, end: group.at(-1)!.end };
+        // A group whose words all sit on one instant has no span either, so its text is kept without a clock.
+        rows.push(instant(span) ? row : { ...span, words: group.filter(word => !instant(word)) });
+      }
+      group = [];
+    };
     for (const word of words) { if (group.length && (word.start - group.at(-1)!.end > 0.8 || group.length >= 12)) flush(); group.push(word); if (/[.!?。！？]$/.test(word.text)) flush(); }
     flush();
   } else if (typeof body.text === 'string' && body.text.trim()) rows.push({ id: 'segment-1', text: body.text });

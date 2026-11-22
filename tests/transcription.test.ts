@@ -52,6 +52,35 @@ test('real timestamps, text-only results, diarization and subtitle interchange r
   assert.equal(transcriptionParameters('gpt-4o-transcribe-diarize').chunking_strategy, 'auto');
 });
 
+test('a word the provider times with no duration stays in the text and does not fail the transcript', () => {
+  // whisper-1 has been seen returning words such as "is" at 5.32–5.32 beside ordinary ones.
+  const words = [{ word: 'and', start: 4.32, end: 4.5 }, { word: 'your', start: 4.5, end: 5.32 }, { word: 'is', start: 5.32, end: 5.32 }, { word: 'it', start: 5.32, end: 5.32 }, { word: 'two', start: 5.32, end: 5.32 }];
+  const timed = [{ text: 'and', start: 4.32, end: 4.5 }, { text: 'your', start: 4.5, end: 5.32 }];
+  const [segment] = normalizeTranscript({ words, segments: [{ text: ' and your, is it two?', start: 4.32, end: 5.48 }] });
+  assert.equal(segment.text, 'and your, is it two?'); assert.deepEqual(segment.words, timed);
+  const [grouped] = normalizeTranscript({ words });
+  assert.equal(grouped.text, 'and your is it two'); assert.equal(grouped.end, 5.32); assert.deepEqual(grouped.words, timed);
+  // A word timed just past a 600-second chunk is clamped to its end, which leaves it no duration either.
+  const [last] = normalizeTranscript({ words: [{ word: 'so', start: 599.2, end: 599.9 }, { word: 'yeah', start: 600.1, end: 600.4 }], segments: [{ text: ' so yeah', start: 599.2, end: 600.4 }] }, 600, 600);
+  assert.equal(last.text, 'so yeah'); assert.equal(last.end, 1200); assert.deepEqual(last.words, [{ text: 'so', start: 1199.2, end: 1199.9 }]);
+  // The words that are left still drive word highlighting; a segment left with none says so instead.
+  const html = '<div data-composition-id="main" data-duration="6"></div>', placement = { sourceStart: 0, sourceEnd: 6, timelineStart: 0, playbackRate: 1 };
+  const spoken = document([segment]); spoken.source.duration = 6;
+  assert.equal(transcriptCaptionSource(html, spoken, placement, { pacing: 'word' }).count, 2);
+  const silent = document(normalizeTranscript({ words: [{ word: 'Okay', start: 1, end: 1 }], segments: [{ text: 'Okay.', start: 0.8, end: 1.4 }] })); silent.source.duration = 6;
+  assert.equal(silent.segments[0].text, 'Okay.'); assert.deepEqual(silent.segments[0].words, []);
+  assert.throws(() => transcriptCaptionSource(html, silent, placement, { pacing: 'word' }), /real word timestamps/);
+  // Without segments, a group whose words all sit on one instant has no span: its text is kept untimed, the rest keeps its clock.
+  assert.deepEqual(normalizeTranscript({ words: [{ word: 'Yes', start: 5, end: 5 }] }), [{ id: 'segment-1', text: 'Yes' }]);
+  const mixed = normalizeTranscript({ words: [{ word: 'Fine.', start: 1, end: 1.4 }, { word: 'Yes', start: 5, end: 5 }, { word: 'sure.', start: 5, end: 5 }, { word: 'Go', start: 9, end: 9.3 }] });
+  assert.deepEqual(mixed.map(row => [row.text, row.start, row.end, row.words?.length]), [['Fine.', 1, 1.4, 1], ['Yes sure.', undefined, undefined, undefined], ['Go', 9, 9.3, 1]]);
+  const untimed = document(mixed); untimed.source.duration = 10;
+  assert.throws(() => transcriptCaptionSource(html, untimed, { ...placement, sourceEnd: 10 }, {}), /Captions require real timestamps/);
+  // A word that ends before it starts is still a provider error.
+  assert.throws(() => normalizeTranscript({ words: [{ word: 'Broken', start: 1, end: 0.5 }], segments: [{ text: 'Broken', start: 0, end: 2 }] }), /Invalid word timestamps/);
+  assert.throws(() => normalizeTranscript({ words: [{ word: 'Broken', start: 1, end: 0.5 }] }), /Invalid (word|transcript) timestamps/);
+});
+
 test('audio/video transcription uses real WAV extraction, one paid request, persistence and deduplication', () => fixture(async store => {
   let calls = 0;
   const fetcher: Fetcher = async (url, init) => {
