@@ -44,7 +44,7 @@ it('reports one hub view and its hero, filter, video and detail actions by id on
   const cover = container.querySelector<HTMLButtonElement>('.om-hub-video .om-gallery-cover')!;
   await act(async () => cover.click());
   expect(clicks().at(-1)).toMatchObject({ area: 'hub_videos', element: 'open_detail', hub_video_id: expect.stringMatching(/^[a-z0-9-]+$/i), position: 0, signed_in: false });
-  const dialog = document.querySelector<HTMLElement>('.om-hub-video-detail')!;
+  const dialog = document.querySelector<HTMLElement>('[data-hub-video-detail]')!;
   await act(async () => button('Recreate this template', dialog).click());
   expect(clicks().at(-1)).toMatchObject({ area: 'hub_video_detail', element: 'start_use', template_action: 'recreate' });
   await act(async () => button('Next template', dialog).click());

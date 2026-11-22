@@ -1015,7 +1015,7 @@ it('opens the Gemini 4 hub from the third Explore slide and returns with browser
   const wall = () => [...container.querySelectorAll<HTMLButtonElement>('.om-hub-video .om-gallery-cover')];
   expect(wall()).toHaveLength(gemini4Videos.length);
   await act(async () => wall()[0].click());
-  const detail = () => document.querySelector<HTMLDialogElement>('dialog.om-hub-video-detail')!;
+  const detail = () => document.querySelector<HTMLDialogElement>('dialog[data-hub-video-detail]')!;
   const count = () => detail().textContent?.match(/(\d+) \/ \d+/)?.[1];
   expect(count()).toBe('1');
   expect(detail().querySelector<HTMLAnchorElement>('a[aria-label="Source"]')?.href).toMatch(/^https:\/\/x\.com\//);
@@ -1025,7 +1025,7 @@ it('opens the Gemini 4 hub from the third Explore slide and returns with browser
   expect(detail().querySelector('.om-media-detail-title')?.textContent).not.toBe(firstTitle);
   expect(detail().querySelector('button[aria-label="Copy contribution brief"]')).toBeTruthy();
   await act(async () => detail().querySelector<HTMLButtonElement>('button[aria-label="Close template preview"]')!.click());
-  expect(document.querySelector('dialog.om-hub-video-detail')).toBeNull();
+  expect(document.querySelector('dialog[data-hub-video-detail]')).toBeNull();
   expect(page().modelHub).toBe('gemini-4');
   const tab = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('.om-hub-videos nav button')].find(node => node.textContent === label)!;
   expect(tab('Made in code')).toBeUndefined();
