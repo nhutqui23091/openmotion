@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"accent","type":"color","label":"Accent","default":"#A8714A"},
+  {"id":"background","type":"color","label":"Background","default":"#F5F8FB"},
+  {"id":"brandName","type":"string","label":"Brand name","default":"Snowi","maxLength":20},
+  {"id":"tagline","type":"string","label":"Tagline","default":"Learn a language by talking.","maxLength":60},
+  {"id":"learnTitle","type":"string","label":"Session title","default":"Speak Serbian with Snowi","maxLength":48},
+  {"id":"cornerNote","type":"string","label":"Corner note","default":"snowi.site","maxLength":30}
+]'>
+<head><meta charset="utf-8"><title>Snowi — Learn a language by talking</title>
+<script src="assets/gsap.min.js"></script>
+<style>body{margin:0}#main{position:relative;width:720px;height:900px;overflow:hidden;background:#F5F8FB}</style></head>
+<body>
+<div data-hf-id="hf-main" id="main" data-composition-id="main" data-start="0" data-duration="17.02" data-width="720" data-height="900" data-fps="60">
+  <div data-hf-id="hf-film-host" id="film" data-composition-id="film" data-composition-src="compositions/film.html" data-start="0" data-duration="17.02" data-track-index="1" data-track-kind="graphics" data-width="720" data-height="900"></div>
+</div>
+<script>window.__timelines = { main: gsap.timeline({ paused: true }) };</script>
+</body>
+</html>

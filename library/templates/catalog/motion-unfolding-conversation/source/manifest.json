@@ -1,0 +1,109 @@
+{
+  "schema": "motion-package-v1",
+  "purpose": "editable-project",
+  "canvas": {
+    "width": 720,
+    "height": 900
+  },
+  "fps": 60,
+  "durationSeconds": 17.02,
+  "timebase": "seconds",
+  "provenance": {
+    "source": "Original repository contribution; independent adaptation of the public Granola reference 'An unfolding device changes the note layout' (catalog reference V138, https://x.com/meetgranola/status/2113631820277592536). Sample content (name, mascot, wordmark, palette, screens, copy) is the contributor's own product (Snowi by Safe4ai).",
+    "license": "Apache-2.0 (code and motion rules); Newsreader and Schibsted Grotesk under SIL OFL 1.1 (license files ship beside the subsets); GSAP under its MIT license.",
+    "reference": "No third-party footage, screenshots, logos or audio are included.",
+    "fonts": "Static Latin/Latin-ext instances (fonttools varLib.instancer + pyftsubset) of the variable originals; weights 400/500/600 plus italic 400 (Newsreader) and 400-700 (Schibsted Grotesk)."
+  },
+  "files": [
+    {
+      "path": "assets/fonts/Newsreader-Italic-subset.ttf",
+      "bytes": 84636,
+      "sha256": "4983c43ed0051437f4f40316e3587894f51c73667577a2dfaf37e6a8e99edf51"
+    },
+    {
+      "path": "assets/fonts/Newsreader-Medium-subset.ttf",
+      "bytes": 76960,
+      "sha256": "1e39095316facfda7c48d955823e0563381ed101e6f75d4e146286afcbbe4ffb"
+    },
+    {
+      "path": "assets/fonts/Newsreader-OFL.txt",
+      "bytes": 4394,
+      "sha256": "fdfad38143ec470553cae82a1e45320bdd1b9ec70415d37bd0171051d8a4ded8"
+    },
+    {
+      "path": "assets/fonts/Newsreader-Regular-subset.ttf",
+      "bytes": 76228,
+      "sha256": "2c1d19ed2e517ad667b25ec4f10d50fbaedbfb6b5099fcb31a14116f08a278e3"
+    },
+    {
+      "path": "assets/fonts/Newsreader-SemiBold-subset.ttf",
+      "bytes": 76988,
+      "sha256": "9b0e328a8bd22ee3942ea29f1ccf5d89b87656c6164044601972fabe70ea639e"
+    },
+    {
+      "path": "assets/fonts/SchibstedGrotesk-Bold-subset.ttf",
+      "bytes": 72336,
+      "sha256": "40a0353adbb5d85fbfa1d26f1e9cf05cde12cc18722e702324917502f48131c6"
+    },
+    {
+      "path": "assets/fonts/SchibstedGrotesk-Medium-subset.ttf",
+      "bytes": 72116,
+      "sha256": "c065e054f4b7d7a4515608e8dd2ea6b11fd069ec365e8ea549cb3412c03bf3c9"
+    },
+    {
+      "path": "assets/fonts/SchibstedGrotesk-OFL.txt",
+      "bytes": 4406,
+      "sha256": "3b4f3063b6ac7c1e403e2c4a5e8ef3a58190ff83ed7b15af66511858699139ce"
+    },
+    {
+      "path": "assets/fonts/SchibstedGrotesk-Regular-subset.ttf",
+      "bytes": 72052,
+      "sha256": "dffbd2940f0496ec04e56c0d5559d0d0fb9616d2b71f0f80fb90b060e44b8bfa"
+    },
+    {
+      "path": "assets/fonts/SchibstedGrotesk-SemiBold-subset.ttf",
+      "bytes": 72200,
+      "sha256": "110667bd9c867de14dc4543cdec5a560571a75cc7e162b0280db04e3def4b4fd"
+    },
+    {
+      "path": "assets/gsap.min.js",
+      "bytes": 72927,
+      "sha256": "92bb9a96476f983d212a2bc4f54c889039c1696dd4461d40a736860938570fbb"
+    },
+    {
+      "path": "assets/lfs/preview.webm",
+      "bytes": 68145,
+      "sha256": "788b0a617e7bb2121c158a423e47fe1a411e24af60058176554f7795704b861a"
+    },
+    {
+      "path": "assets/poster.jpg",
+      "bytes": 7202,
+      "sha256": "059304fd3871d8e507943578d2aa91b9c509113ee1ad1f9795fd26047832abd3"
+    },
+    {
+      "path": "compositions/film.html",
+      "bytes": 31365,
+      "sha256": "c989e245053b9fb0a7919d951e5f42c4ab5a0edadab66fc8a01692c90b787573"
+    },
+    {
+      "path": "hyperframes.json",
+      "bytes": 189,
+      "sha256": "3212d379de925a5a42334d41d57e156116b4316daf29d106edff76f4d76feb63"
+    },
+    {
+      "path": "index.html",
+      "bytes": 1380,
+      "sha256": "ad1ace41a724a447c0b1fa6580757847e91fc80dea7eb1b5beed9f193c8c55f8"
+    },
+    {
+      "path": "motion.md",
+      "bytes": 6814,
+      "sha256": "cb9bfadf7e6cb32e3ff9285f0c0c27ca7cfcf260badb336729792b2a49f5248c"
+    },
+    {
+      "path": "preview.html",
+      "bytes": 34545,
+      "sha256": "e50b2c3c6af41613133982147818d4725a823b29a265884503556805e28af2ee"
+    }
+  ]
+}
