@@ -88,9 +88,12 @@ export function placeTranscriptSegments(doc: TranscriptDocument, placement: Tran
   if (![sourceStart, sourceEnd, timelineStart, playbackRate].every(Number.isFinite) || sourceStart < 0 || sourceEnd > doc.source.duration + 0.1 || sourceEnd <= sourceStart || timelineStart < 0 || playbackRate < 0.1 || playbackRate > 8) throw new Error('Invalid caption placement');
   if (!doc.segments.length || doc.segments.some(s => !timedSegment(s))) throw new Error('Captions require real timestamps. Add timings or use a timestamp-capable model.');
   const map = (time: number) => timelineStart + (time - sourceStart) / playbackRate;
+  // Captions and subtitle files are written in whole milliseconds. Whisper times are float32, so a sentence boundary at 5.02
+  // arrives as 5.019999980926514 and a clip cut at 5.02 overlaps the next sentence by nanoseconds: that is not a cue.
+  const millisecond = (time: number) => Math.round(map(time) * 1000);
   const cues = doc.segments.filter(timedSegment).flatMap(segment => {
     const from = Math.max(sourceStart, segment.start), to = Math.min(sourceEnd, segment.end);
-    if (to <= from) return [];
+    if (millisecond(to) <= millisecond(from)) return [];
     return [{ ...segment, start: map(from), end: map(to), words: segment.words?.flatMap(word => {
       const start = Math.max(from, word.start), end = Math.min(to, word.end);
       return end > start ? [{ ...word, start: map(start), end: map(end) }] : [];

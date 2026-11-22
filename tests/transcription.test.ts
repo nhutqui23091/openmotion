@@ -134,6 +134,27 @@ test('caption placement clips to source ranges, scales playback timing and rejec
   assert.throws(() => transcriptCaptionSource(html, document([{ id: 'a', text: 'No times' }]), { sourceStart: 0, sourceEnd: 3, timelineStart: 0, playbackRate: 1 }), /real timestamps/);
 });
 
+test('a clip cut on a sentence boundary leaves the neighbouring sentence out of the subtitle file', () => {
+  // Whisper reports float32 seconds: the boundary at 5.02 arrives as 5.019999980926514, and the clip is cut at 5.02.
+  const edge = Math.fround(5.02), head = { sourceStart: 0, sourceEnd: 5.02, timelineStart: 0, playbackRate: 1 };
+  const doc = document([{ id: 'a', text: 'Before the cut.', start: 2.5, end: edge }, { id: 'b', text: 'After the cut.', start: edge, end: 8.4 }]); doc.source.duration = 10;
+  for (const format of ['srt', 'vtt'] as const) {
+    // The file used to end with "After the cut." at 00:00:05,020 --> 00:00:05,020, which this parser then refused.
+    const cues = parseTranscriptSubtitles(exportTranscript(doc, format, head).content);
+    assert.deepEqual(cues.map(cue => [cue.text, cue.start, cue.end]), [['Before the cut.', 2.5, 5.02]]);
+  }
+  // The other edge, where float32 lands above the cut: 7.03 arrives as 7.03000020980835.
+  const late = Math.fround(7.03);
+  const tail = document([{ id: 'a', text: 'Before the cut.', start: 4, end: late }, { id: 'b', text: 'After the cut.', start: late, end: 9 }]); tail.source.duration = 10;
+  assert.equal(exportTranscript(tail, 'srt', { sourceStart: 7.03, sourceEnd: 10, timelineStart: 0, playbackRate: 1 }).content, '1\n00:00:00,000 --> 00:00:01,970\nAfter the cut.\n');
+  // Native captions already left it out; a range holding nothing else has no cue in either output.
+  const html = '<div data-composition-id="main" data-duration="6"></div>';
+  assert.equal(transcriptCaptionSource(html, doc, head).count, 1);
+  const only = document([doc.segments[1]]); only.source.duration = 10;
+  assert.throws(() => exportTranscript(only, 'srt', head), /No transcript cues overlap/);
+  assert.throws(() => transcriptCaptionSource(html, only, head), /No transcript cues overlap/);
+});
+
 test('active cancellation aborts the original request and restart never replays an interrupted paid job', () => fixture(async store => {
   let calls = 0, entered!: () => void;
   const started = new Promise<void>(resolve => { entered = resolve; });
