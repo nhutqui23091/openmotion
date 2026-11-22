@@ -29,7 +29,7 @@ Skills CLI installs instructions only. Continue the chosen runtime setup below i
 
 When the current host is DSH and the user wants the integrated workspace, use the single source-checkout installer below. Do not apply the Codex or generic MCP route, register a second adapter, start another DSH instance or restart this conversation.
 
-Collect the existing checkout, current profile, `DSH_HOME`, workspace data directory and request language once from the host context. Reuse an intended checkout after checking its remote and local changes; do not inspect installer internals, rescan processes or repeatedly read the same guides. For a new source installation, shallow-clone the selected branch once with optional LFS downloads disabled as shown under [Other local hosts](#other-local-hosts-source-and-mcp). Run this from that checkout using Node.js 26.11.1 and the actual existing profile:
+Collect the existing checkout, current profile, `DSH_HOME`, workspace data directory and request language once from the host context. Reuse an intended checkout after checking its remote and local changes; do not inspect installer internals, rescan processes or repeatedly read the same guides. For a new source installation, shallow-clone the selected branch once with optional LFS downloads disabled as shown under [Other local hosts](#other-local-hosts-source-and-mcp). Run this from that checkout using Node.js 24 or later (this installer's own minimum, above the `engines.node` floor; CI and the Docker image pin 26.11.1) and the actual existing profile:
 
 ```sh
 node integrations/dsh/install.ts --profile PROFILE --data-dir /absolute/workspace/data --language zh
@@ -43,7 +43,7 @@ Published tarballs remain available through [OpenMotion for DSH](../integrations
 
 ## Codex: automatic source installation
 
-Collect OS/CPU, Git, Node.js/npm and the current host once. Source validation uses Node.js 26.11.1. Codex must support `codex plugin add`. Preserve projects, credentials, unrelated plugins and MCP configuration. Configure only the current host.
+Collect OS/CPU, Git, Node.js/npm and the current host once. Source validation requires Node.js 22.18 or later (the `engines.node` floor in [package.json](../package.json); CI and the Docker image pin 26.11.1). Codex must support `codex plugin add`. Preserve projects, credentials, unrelated plugins and MCP configuration. Configure only the current host.
 
 Before running the installer, including setup from an existing checkout, export `OPENMOTION_ONBOARDING_LANGUAGE` in the same shell. Derive it from the latest user request's language, not the OS or host UI language. Supported codes are `zh`, `en`, `ja`, `ko`, `fr`, `es` and `pt`; normalize locale tags to their lowercase primary code and use `en` for unsupported languages. For a Chinese request, run `export OPENMOTION_ONBOARDING_LANGUAGE=zh` before the commands below so the welcome/cards are prepared in Chinese.
 
@@ -62,7 +62,7 @@ The installer saves phase timings and an immutable onboarding receipt under `.ar
 
 ## Other local hosts: source and MCP
 
-Use Git, npm and Node.js 26.11.1:
+Use Git, npm and Node.js 22.18 or later (`engines.node` in [package.json](../package.json); CI and the Docker image use 26.11.1, but no upgrade is required):
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git

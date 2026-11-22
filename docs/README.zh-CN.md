@@ -76,7 +76,7 @@ OpenMotion 是一个**由 AI Agent 驱动的全栈视频创作工作台**，也�
 
 ### 克隆仓库并在本地启动
 
-需要 Git、npm 和 Node.js 26.11.1：
+需要 Git、npm 和 Node.js 22.18 或更高版本（[package.json](../package.json) 中的 `engines.node`；CI 与 Docker 镜像固定使用 26.11.1，无需为此升级）：
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git
@@ -453,7 +453,7 @@ Agent 安装成功后会直接打开编辑器的模板库，暂不创建项目�
 
 **从免费本地创作全栈开始。** 连接自己的 Agent、打开内置模板或导入实拍，用本地应用渲染。需要生成新素材时，在 Model Settings 加入受支持的媒体 Key。
 
-准备 Git、npm 和 **Node.js 26.11.1**。从源码预览和导出还需要 Chrome/Chromium 和 FFmpeg/FFprobe。[运行环境配置](usage.md)
+准备 Git、npm 和 **Node.js 22.18 或更高版本**（[package.json](../package.json) 中的 `engines.node` 下限；CI 与 Docker 镜像固定使用 26.11.1）。从源码预览和导出还需要 Chrome/Chromium 和 FFmpeg/FFprobe。[运行环境配置](usage.md)
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git openmotion
@@ -464,6 +464,8 @@ npm start
 ```
 
 在浏览器中打开 <http://localhost:4173>，进入**模板库**，选择模板并点击**复刻模板**，复制指令给你的 Agent。工程与凭据保存在代码仓库之外；用 `MOTION_DATA_DIR` 选择工作区。
+
+在 Windows 上，启动器以 detached 方式拉起服务后退出。服务能否继续运行取决于宿主环境：部分 Agent 沙箱会在启动器退出时结束整个进程树。这属于预期行为，MCP 工具在需要时会按需重新启动服务。
 
 <a id="agent-setup"></a>
 
@@ -545,6 +547,8 @@ npx skills add nexu-io/openmotion --skill openmotion-director openmotion-product
 用 `openmotion_list_templates` 查找模板，`openmotion_get_template` 查看详情，再用 `openmotion_create_project` 创建可编辑副本。[模板目录](template-catalog.md)
 
 使用 `npm start` 启动应用，使用 `npm run mcp` 启动 stdio。具备 shell 的 Agent 可使用运行时返回的固定版本引擎 CLI 检查和渲染；托管修改仍遵守工程 revision 校验。[原生创作](../skills/openmotion-production/references/native.md)
+
+在 Windows 上，开启使用数据时，OpenMotion 会调用 `reg.exe` 读取 MachineGuid，用于生成匿名设备哈希。部分受限宿主会拦截 `reg.exe`，错误可能与正常的 MCP 握手同时出现。这不影响功能：OpenMotion 记录 `device_id=unknown`，工具照常可用。在 MCP 的 `env` 中设置 `OPENMOTION_TELEMETRY=0` 或 `DO_NOT_TRACK=1` 可跳过此读取。[使用数据](../tracking/README.md)
 
 <a id="product-tour"></a> <a id="产品界面"></a> <a id="connect-your-agent"></a> <a id="use-from-your-agent"></a> <a id="从-agent-接入"></a> <a id="your-agent-your-studio"></a>
 

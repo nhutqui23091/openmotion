@@ -76,7 +76,7 @@ https://releases.open-design.ai/motion を読み、手順に従って現在の�
 
 ### リポジトリをローカルで起動する
 
-Git、npm、Node.js 26.11.1 が必要です：
+Git、npm、Node.js 22.18 以降が必要です（[package.json](../package.json) の `engines.node`。CI と Docker イメージは 26.11.1 を使いますが、アップグレードは不要です）：
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git
@@ -453,7 +453,7 @@ Brand Kit セクションには、ブランド情報、語り口、確認済み�
 
 **無料のローカル制作環境から。** 自分のエージェントを接続し、同梱テンプレートや撮影素材を使ってローカルでレンダリング。新しい素材を生成するときは Model Settings に対応キーを追加します。
 
-Git、npm、**Node.js 26.11.1** を用意してください。ソースからのプレビューと書き出しには Chrome または Chromium と、FFmpeg・FFprobe も必要です。[実行環境の設定](usage.md)
+Git、npm、**Node.js 22.18 以降**を用意してください（[package.json](../package.json) の `engines.node` の下限。CI と Docker イメージは 26.11.1 に固定）。ソースからのプレビューと書き出しには Chrome または Chromium と、FFmpeg・FFprobe も必要です。[実行環境の設定](usage.md)
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git openmotion
@@ -464,6 +464,8 @@ npm start
 ```
 
 **http://localhost:4173** を開き、**テンプレートライブラリ**からテンプレートを選びます。**テンプレートを再現**を押すと、エージェントに送る指示をコピーできます。プロジェクトと認証情報はコードとは別に保存され、`MOTION_DATA_DIR` でワークスペースを選べます。
+
+Windows では、ランチャーはサービスを detached プロセスとして起動してから終了します。そのプロセスが残るかどうかはホスト次第で、一部のエージェントのサンドボックスはランチャーの終了時にプロセスツリー全体を終了します。これは想定どおりの動作で、修正は不要です。MCP ツールが必要なときにサービスを再起動します。
 
 <a id="agent-setup"></a>
 
@@ -539,6 +541,8 @@ npx skills add ./skills --skill openmotion-director openmotion-production openmo
 `openmotion_list_templates` でテンプレートを探し、`openmotion_get_template` で詳細を確認します。`openmotion_create_project` で編集用のコピーを作成できます。[テンプレート一覧](template-catalog.md)
 
 アプリには `npm start` 、stdio には `npm run mcp` を使用します。シェル対応エージェントは実行環境が返す固定版エンジン CLI で検査・レンダリング可能。管理対象の編集には revision 検査を適用します。[ネイティブ制作](../skills/openmotion-production/references/native.md)
+
+Windows で利用データが有効な場合、OpenMotion は匿名デバイスハッシュに使う MachineGuid を読み取るため `reg.exe` を実行します。一部の制限付きホストは `reg.exe` をブロックし、正常な MCP ハンドシェイクの横にエラーが表示されることがあります。これは致命的ではなく、OpenMotion は `device_id=unknown` を記録し、ツールはそのまま動作します。読み取りを省くには、MCP の `env` に `OPENMOTION_TELEMETRY=0` または `DO_NOT_TRACK=1` を設定します。[利用データ](../tracking/README.md)
 
 <a id="product-tour"></a> <a id="产品界面"></a> <a id="connect-your-agent"></a> <a id="use-from-your-agent"></a> <a id="从-agent-接入"></a> <a id="your-agent-your-studio"></a>
 

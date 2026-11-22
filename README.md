@@ -84,7 +84,7 @@ Read https://releases.open-design.ai/motion and follow the instructions to insta
 
 ### Run the repository locally
 
-Use Git, npm and Node.js 26.11.1:
+Use Git, npm and Node.js 22.18 or later (`engines.node` in [package.json](package.json); CI and the Docker image use 26.11.1, but no upgrade is required):
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git
@@ -465,7 +465,7 @@ During video creation and editing, the chat stays free of preview areas. OpenMot
 
 If MCP tools are missing or fail to connect, use the installed [connection diagnosis and recovery guide](docs/npm-installation.md#missing-mcp-tools-or-a-failed-connection) to inspect the actual host configuration and verify the original workspace before continuing.
 
-Use Git, npm and **Node.js 26.11.1**. Source-based preview and export also need Chrome/Chromium and FFmpeg/FFprobe. [Runtime setup](docs/usage.md)
+Use Git, npm and **Node.js 22.18 or later** (the `engines.node` floor in [package.json](package.json); CI and the Docker image pin 26.11.1). Source-based preview and export also need Chrome/Chromium and FFmpeg/FFprobe. [Runtime setup](docs/usage.md)
 
 ```sh
 git -c filter.lfs.process= -c filter.lfs.smudge= -c filter.lfs.required=false clone --depth 1 --single-branch --branch main https://github.com/nexu-io/openmotion.git
@@ -478,6 +478,8 @@ npm start
 Full reference videos and optional template archives download through Git LFS only when requested. README images/GIFs and built-in templates remain available directly. See [clone size and optional media downloads](docs/repository-storage.md).
 
 Open the `studioUrl` or `previewUrl` printed by `npm start`, then open **Template library**. Startup reuses a compatible service for the same workspace or selects an available local port. The service keeps running in the background after the launcher exits.
+
+On Windows, the launcher starts the service as a detached process and then exits. Whether that process survives depends on the host: some agent sandboxes end the whole process tree when the launcher exits. This is expected and does not need a fix, because MCP tools start the service again when they need it.
 
 Select a template and choose **Recreate template** to copy the instruction for your agent. Keep projects and credentials outside the checkout; `MOTION_DATA_DIR` selects the workspace.
 
@@ -560,6 +562,8 @@ The **twenty-two public MCP names (including one asset compatibility alias and f
 Find a template with `openmotion_list_templates`, inspect it with `openmotion_get_template`, then create an editable copy with `openmotion_create_project`. [Template catalog](docs/template-catalog.md)
 
 Use `npm start` for the app and `npm run mcp` for stdio. Shell-capable agents can inspect and render with the pinned engine CLI returned by the runtime; managed edits retain project revision checks. [Native authoring](skills/openmotion-production/references/native.md)
+
+On Windows, when usage data is enabled, OpenMotion runs `reg.exe` to read the MachineGuid used for the anonymous device hash. Some restricted hosts block `reg.exe`, and the error may show up next to an otherwise healthy MCP handshake. It is not fatal: OpenMotion reports `device_id=unknown` and the tools keep working. To skip the read, set `OPENMOTION_TELEMETRY=0` or `DO_NOT_TRACK=1` in the MCP `env`. [Usage data](tracking/README.md)
 
 <a id="product-tour"></a> <a id="产品界面"></a> <a id="connect-your-agent"></a> <a id="use-from-your-agent"></a> <a id="从-agent-接入"></a> <a id="your-agent-your-studio"></a>
 
