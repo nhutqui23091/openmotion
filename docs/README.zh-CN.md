@@ -387,7 +387,7 @@ npm start
 
 <a id="make-your-motion-language-reusable"></a> <a id="motion-design-community"></a>
 
-### 3. 300 多份 Motion.md，让视频复刻有据可循
+### 3. 287 份 Motion.md，让视频复刻有据可循
 
 OpenMotion 首次定义了 **Motion.md**：用 Markdown 记录镜头顺序、时长、转场和可替换素材。线上模板库将参考视频与动效说明集中在同一个详情页。
 

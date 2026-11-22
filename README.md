@@ -397,7 +397,7 @@ Provider credentials stay in your workspace, separate from the video project. Yo
 
 <a id="make-your-motion-language-reusable"></a> <a id="motion-design-community"></a>
 
-### 3. 300+ Motion.md guides for video recreation
+### 3. 287 Motion.md guides for video recreation
 
 OpenMotion introduces **Motion.md**: a Markdown format for shot order, timing, transitions and the assets you can replace. The online library brings reference videos and their motion guides into the same detail page.
 

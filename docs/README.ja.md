@@ -387,7 +387,7 @@ npm start
 
 <a id="make-your-motion-language-reusable"></a> <a id="motion-design-community"></a>
 
-### 3. 300 本以上の Motion.md で動画を再現
+### 3. 287 本以上の Motion.md で動画を再現
 
 OpenMotion が提案する **Motion.md** は、ショットの順序、長さ、トランジション、置き換え可能な素材を Markdown で記録する形式です。オンラインライブラリでは、参考動画とモーションガイドを同じ詳細ページで確認できます。
 

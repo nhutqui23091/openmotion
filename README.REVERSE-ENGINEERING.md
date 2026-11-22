@@ -416,7 +416,7 @@ Provider credentials stay in your workspace, separate from the video project. Yo
 
 <a id="make-your-motion-language-reusable"></a> <a id="motion-design-community"></a>
 
-### 3. 300+ Motion.md brand film studies + 890+ creative resources
+### 3. 287 Motion.md brand film studies + 890+ creative resources
 
 OpenMotion introduces **Motion.md**. The first open-source collection breaks down brand films shot by shot, recording timing, transitions and the assets you can replace. In the [Stripe example](examples/brand-studies/stripe/MOTION.md), the flip stays on the same beat while a payment card becomes a film frame.
 
