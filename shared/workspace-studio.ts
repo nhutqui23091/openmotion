@@ -254,7 +254,12 @@ export async function startWorkspaceStudio(runtimeRoot: string, dataDirectory: s
       if (url.pathname === '/api/projects') return json({ projects: store.projectCatalog().projects.map(project => ({ id: project.id, title: project.title, dir: store.projectDirectoryFor(project.id) })) });
       const sharedResource = url.pathname === '/' || url.pathname.startsWith('/assets/') || /^\/api\/(?:runtime\.js|vendor\/|fonts|environment\/|assets\/global)/.test(url.pathname);
       const catalog = store.projectCatalog();
-      const target = id ?? (catalog.projects.length === 1 || sharedResource ? catalog.projects.find(project => store.projectDirectoryFor(project.id) === initialDirectory)?.id : undefined);
+      const activeProjects = catalog.projects.filter(project => !project.trashedAt);
+      const fallbackTarget = () =>
+        activeProjects.find(project => store.projectDirectoryFor(project.id) === initialDirectory)?.id
+        ?? activeProjects.find(project => hosts.has(project.id))?.id
+        ?? catalog.activeId;
+      const target = id ?? (activeProjects.length === 1 || sharedResource ? fallbackTarget() : undefined);
       if (!target) return json({ error: 'PROJECT_NOT_BOUND: specify projectId' }, 400);
       const host = await hostFor(target);
       return await host.app.fetch(request);

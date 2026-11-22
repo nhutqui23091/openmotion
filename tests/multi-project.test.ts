@@ -135,3 +135,28 @@ test('a cold bookmark opens its named project without stamping another selected 
     assert.equal(store.projectCatalog().activeId, b, 'bookmark must not replace the remembered project');
   } finally { await running.close(); }
 }));
+
+test('shared Studio endpoints stay available after the initial project is trashed or deleted', { timeout: 60_000 }, () => fixture(async store => {
+  const a = store.projectId, b = crypto.randomUUID(), c = crypto.randomUUID();
+  await cp(store.projectDirectory, store.projectDirectoryFor(b), { recursive: true });
+  await cp(store.projectDirectory, store.projectDirectoryFor(c), { recursive: true });
+  await store.selectProject(b, { id: b, title: 'B' });
+  await store.selectProject(c, { id: c, title: 'C' });
+  await store.selectProject(a);
+  const running = await startServer(store, 0);
+  const origin = `http://127.0.0.1:${(running.server.address() as { port: number }).port}`;
+  try {
+    assert.equal((await fetch(`${origin}/api/fonts`)).status, 200);
+    assert.equal((await fetch(`${origin}/api/runtime.js`)).status, 200);
+
+    await store.trashProject(a, 'trash-initial-studio-project');
+    assert.equal((await fetch(`${origin}/api/fonts`)).status, 200, 'shared /api/fonts must fall back to an active project after initial project is trashed');
+    assert.equal((await fetch(`${origin}/api/runtime.js`)).status, 200, 'shared /api/runtime.js must fall back to an active project after initial project is trashed');
+    assert.equal((await fetch(new URL('/api/events', running.studio.url))).status, 400, 'unbound project endpoints must stay rejected while multiple active projects exist');
+
+    await store.deleteProject(a, 'delete-initial-studio-project');
+    assert.equal((await fetch(`${origin}/api/fonts`)).status, 200, 'shared /api/fonts must stay available after initial project is deleted');
+    assert.equal((await fetch(`${origin}/api/runtime.js`)).status, 200, 'shared /api/runtime.js must stay available after initial project is deleted');
+    assert.equal((await fetch(`${origin}/api/projects/${b}/files/index.html`)).status, 200);
+  } finally { await running.close(); }
+}));
