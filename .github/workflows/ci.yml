@@ -127,6 +127,10 @@ jobs:
         run: node .github/scripts/ci-scope.mjs
       - name: Test release controls without publication credentials
         run: node --test tests/release-workflows.test.mjs tests/release-scan.test.mjs tests/registry-download.test.mjs tests/stable-release.test.mjs tests/release-notes.test.mjs tests/publish-template-catalog.test.mjs tests/template-registry-consumer.test.mjs
+      - name: Check dependency advisories
+        run: |
+          node --test tests/dependency-advisories.test.ts
+          node --experimental-strip-types scripts/check-dependency-advisories.mjs
       - name: Install locked Motion dependencies
         if: steps.scope.outputs.full == 'true'
         run: npm ci --no-audit --no-fund

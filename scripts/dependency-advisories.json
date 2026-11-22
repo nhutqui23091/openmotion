@@ -1,0 +1,13 @@
+{
+  "comment": "High and critical advisories that are understood and accepted, scoped to the package they were reviewed in. An entry must name a tracking issue or explain the bounded exposure.",
+  "accepted": {
+    "GHSA-5p2g-fcmc-qvqq": {
+      "package": "image-size",
+      "reason": "JXL and HEIF parser denial of service, reached only through pptxgenjs reading its own generated artwork while assembling a PPTX export. Upstream tracking: issue #720."
+    },
+    "GHSA-w3rx-r6r6-pgpr": {
+      "package": "image-size",
+      "reason": "ICNS parser denial of service on the same pptxgenjs export path. Upstream tracking: issue #720."
+    }
+  }
+}
