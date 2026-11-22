@@ -1,6 +1,7 @@
 import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { nativeProjectConfig, pluginRoot } from './hyperframes.ts';
+import { portableNameProblem } from './shared/project-name.ts';
 
 export const welcomeTemplateId = 'openmotion-welcome';
 // Brand resources and third-party dependencies retain their maintained sources.
@@ -31,29 +32,56 @@ export function findTemplate(id: string) {
   return template;
 }
 
-export async function copyTemplate(id: string, directory: string, runtimeRoot: string) {
+/** A manifest path may only name a relative file inside the template source or the new project. */
+export function templatePath(value: unknown, field: string) {
+  // Only platform-independent rules apply here. A POSIX root and a drive prefix (a colon at all) are
+  // rejected, and so is every segment the shared portable-name rule refuses, because Win32
+  // canonicalizes a trailing dot or space away and cannot materialize a reserved device name. The
+  // answer therefore cannot change with the host platform.
+  if (typeof value !== 'string' || !value || value.length > 240 || /[\\:\x00-\x1f\x7f]/.test(value)
+    || path.posix.isAbsolute(value)
+    || value.split('/').some(part => !part || part === '.' || part === '..')
+    || portableNameProblem(value)) throw new Error('模板文件路径无效:' + field);
+  return value;
+}
+
+/**
+ * Materialize a shipped template into `directory`. `sourceRoot` is the checkout or installed
+ * application that holds `template-library/`, and it defaults to the running application; naming it
+ * lets a caller exercise a tampered manifest against a staged source instead of the shipped one.
+ */
+export async function copyTemplate(id: string, directory: string, runtimeRoot: string, sourceRoot = pluginRoot) {
   findTemplate(id);
-  const source = path.join(pluginRoot, 'template-library', id);
+  const source = path.join(sourceRoot, 'template-library', id);
   const manifest = JSON.parse(await readFile(path.join(source, 'registry-item.json'), 'utf8'));
   for (const file of manifest.files) {
-    const target = path.join(directory, file.target);
+    // The shipped manifests are trusted content, but the same containment the other catalogue readers
+    // enforce keeps a future manifest from writing outside the new project or reading outside the source.
+    // Compare resolved paths: the destination can arrive with a trailing separator, which path.join
+    // collapses, so a raw prefix test would reject every legitimate target in that case.
+    const projectRoot = path.resolve(directory);
+    const resolvedSource = path.resolve(source);
+    const target = path.join(directory, templatePath(file.target, 'target'));
+    if (!path.resolve(target).startsWith(projectRoot + path.sep)) throw new Error('模板文件路径无效:target');
+    const origin = path.join(source, templatePath(file.path, 'path'));
+    if (!path.resolve(origin).startsWith(resolvedSource + path.sep)) throw new Error('模板文件路径无效:path');
     await mkdir(path.dirname(target), { recursive: true });
     if (target.endsWith('.html')) {
       const relative = path.relative(path.dirname(target), path.join(directory, 'assets/gsap.min.js')).split(path.sep).join('/');
-      const html = (await readFile(path.join(source, file.path), 'utf8')).replaceAll('https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js', relative);
+      const html = (await readFile(origin, 'utf8')).replaceAll('https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js', relative);
       await writeFile(target, html);
-    } else await copyFile(path.join(source, file.path), target);
+    } else await copyFile(origin, target);
   }
   if (id === welcomeTemplateId) {
     for (const [sourcePath, targetPath] of welcomeSharedAssets) {
       const target = path.join(directory, targetPath);
       await mkdir(path.dirname(target), { recursive: true });
-      await copyFile(path.join(pluginRoot, sourcePath), target);
+      await copyFile(path.join(sourceRoot, sourcePath), target);
     }
   }
   await mkdir(path.join(directory, 'assets'), { recursive: true });
   await copyFile(path.join(runtimeRoot, 'node_modules/gsap/dist/gsap.min.js'), path.join(directory, 'assets/gsap.min.js'));
-  await cp(path.join(pluginRoot, 'template-library/LICENSE'), path.join(directory, 'LICENSE'));
-  if (id !== welcomeTemplateId) await cp(path.join(pluginRoot, 'template-library/NOTICE.md'), path.join(directory, 'NOTICE.md'));
+  await cp(path.join(sourceRoot, 'template-library/LICENSE'), path.join(directory, 'LICENSE'));
+  if (id !== welcomeTemplateId) await cp(path.join(sourceRoot, 'template-library/NOTICE.md'), path.join(directory, 'NOTICE.md'));
   await writeFile(path.join(directory, 'hyperframes.json'), JSON.stringify(nativeProjectConfig, null, 2));
 }

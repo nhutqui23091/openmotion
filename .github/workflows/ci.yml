@@ -63,7 +63,7 @@ jobs:
           npm run templates:check -- --final-tree
           npm run storage:check -- --final-tree
           node --test tests/repository-storage.test.ts tests/media-transfer.test.ts
-          node --test tests/template-library.test.ts tests/ci-scope.test.mjs
+          node --test tests/template-library.test.ts tests/template-manifest-paths.test.ts tests/ci-scope.test.mjs
 
   maintainability:
     name: Maintainability report

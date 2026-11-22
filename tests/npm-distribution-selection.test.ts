@@ -63,7 +63,7 @@ test('packaged onboarding prepares and publishes real cards from the allowlist w
   const directory = await mkdtemp(path.join(tmpdir(), 'om-packaged-onboarding-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const runtimeFiles = new Set(['package.json', 'template-library.ts', 'hyperframes.ts',
-    'shared/export-spec.ts', 'shared/mcp-template-recommendations.ts', 'shared/onboarding-templates.ts', 'shared/tool-input-error.ts', ...onboardingSourceFiles,
+    'shared/export-spec.ts', 'shared/mcp-template-recommendations.ts', 'shared/onboarding-templates.ts', 'shared/tool-input-error.ts', 'shared/project-name.ts', ...onboardingSourceFiles,
     'scripts/inline-onboarding.mjs', 'scripts/runtime-assets.mjs', 'scripts/onboarding-catalog.ts',
     'shared/template-config.ts', 'shared/template-config.json']);
   for (const profile of ['phase1', 'legacy']) {
