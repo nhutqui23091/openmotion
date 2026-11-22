@@ -1,3 +1,4 @@
+import { acknowledgeFileEdit } from "../utils/isolatedEditVersions";
 import { useCallback, useMemo } from "react";
 import {
   createStudioSaveHttpError,
@@ -128,6 +129,7 @@ export function useProjectFileWriter({ projectId }: UseProjectFileWriterOptions)
           const version = result.version ?? response.headers.get("etag");
           if (!version)
             throw new Error(`Save response for ${path} did not include a content version`);
+          acknowledgeFileEdit(writeProjectId, path, expectedVersion, version);
           fileVersions.set(path, version);
         });
       });

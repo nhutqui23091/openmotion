@@ -77,6 +77,12 @@ export function createStudioFileMutationsRoutes(
       return c.json({ error: 'Target file not found', path: filePath }, 404);
     }
 
+    const currentVersion = formatVersionFromSha256(sha256Hex(currentText));
+    const shownVersion = c.req.header('if-match');
+    if (shownVersion !== undefined && shownVersion !== currentVersion) {
+      return c.json({ error: 'file conflict', code: 'VERSION_MISMATCH', durable: false }, 409);
+    }
+
     const htmlByPath = new Map<string, string>();
     for (const f of virtual.listFiles()) {
       if (f.isText && (f.path.endsWith('.html') || f.path.endsWith('.htm'))) {
@@ -100,12 +106,11 @@ export function createStudioFileMutationsRoutes(
     let version = formatVersionFromSha256(sha256Hex(nextHtml));
 
     if (changed) {
-      const ifMatch = c.req.header('if-match') ?? formatVersionFromSha256(sha256Hex(currentText));
       try {
         const committed = await deps.files.commitChanges(auth, {
           projectId,
           ops: [{ op: 'upsert_text', path: filePath, content: nextHtml, stampHfIds: true }],
-          filePreconditions: [{ path: filePath, ifMatch }],
+          filePreconditions: [{ path: filePath, ifMatch: currentVersion }],
           source: 'studio',
           summary: `Patched element in ${filePath}`,
           writeToken,
@@ -233,6 +238,7 @@ export function createStudioFileMutationsRoutes(
     const writeToken = createWriteToken(c.req.header('x-hyperframes-write-token'));
     const durable = fileResults.every(file => file.matched.every(Boolean));
     let revision = virtual.revision;
+    let versions: Record<string, string> = {};
 
     if (durable && commitOps.length > 0) {
       try {
@@ -245,6 +251,7 @@ export function createStudioFileMutationsRoutes(
           writeToken,
         });
         revision = committed.revision;
+        versions = committed.versionsByPath;
       } catch (error) {
         if (isCloudError(error) && error.code === 'VERSION_CONFLICT') {
           return c.json({ error: 'file conflict', code: 'VERSION_MISMATCH', durable: false }, 409);
@@ -260,6 +267,7 @@ export function createStudioFileMutationsRoutes(
       writeToken,
       files: fileResults.map((file, i) => ({
         ...file,
+        ...(versions[file.sourceFile] && { version: versions[file.sourceFile] }),
         ...(!durable && { after: file.before, changed: false }),
         matched: body.batches![i]!.patches ? file.matched : file.matched.some(Boolean),
       })),

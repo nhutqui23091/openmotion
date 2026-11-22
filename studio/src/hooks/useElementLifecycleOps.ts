@@ -1,3 +1,4 @@
+import { acknowledgeFileEdit, isolatedEditVersion } from "../utils/isolatedEditVersions";
 import { buildProjectApiPath } from "../utils/projectRouting";
 import { useCallback } from "react";
 import { assertSafeElementDeletion } from "../utils/deleteScriptDependencies";
@@ -165,6 +166,7 @@ export function useElementLifecycleOps({
           recordEdit: editHistory.recordEdit,
           rewrite: async (originalContent) => {
             assertSafeElementDeletion(originalContent, patchTargets);
+            const expected = shownVersion && isolatedEditVersion(pid, targetPath, '"sha256:' + shownVersion + '"');
             const removeResponse = await studioApiFetch(
               buildProjectApiPath(
                 pid,
@@ -173,7 +175,7 @@ export function useElementLifecycleOps({
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...studioWriteHeaders(),
-                  ...(shownVersion && { "If-Match": '"sha256:' + shownVersion + '"' }) },
+                  ...(expected && { "If-Match": expected }) },
                 body: JSON.stringify({ targets: patchTargets }),
               },
             );
@@ -184,10 +186,12 @@ export function useElementLifecycleOps({
               );
             }
             const removeData = (await removeResponse.json()) as {
+              version?: string;
               changed?: boolean;
               content?: string;
             };
             if (!removeData.changed) return null;
+            acknowledgeFileEdit(pid, targetPath, expected, removeData.version);
             return {
               disk: typeof removeData.content === "string" ? removeData.content : originalContent,
             };

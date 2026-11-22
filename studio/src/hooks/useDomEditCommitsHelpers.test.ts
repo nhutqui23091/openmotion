@@ -2,7 +2,37 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DomEditSelection } from "../components/editor/domEditingTypes";
 import { jsonResponse, requestUrl } from "./fetchStubTestUtils";
-import { assignGsapTargetAutoIdIfNeeded, writePreparedContent } from "./useDomEditCommitsHelpers";
+import { assignGsapTargetAutoIdIfNeeded, patchElementBatches, postPatchElement, writePreparedContent } from "./useDomEditCommitsHelpers";
+
+it("chains single and atomic writes from one frame and preserves conflicts with peer edits", async () => {
+  const project = "rapid-isolated-edits";
+  const path = "scene.html";
+  const showToast = vi.fn();
+  const seen: string[] = [];
+  let current = "shown";
+  vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+    const batch = JSON.parse(String(init.body)).batches?.[0];
+    const expected = batch?.ifMatch ?? new Headers(init.headers).get("If-Match");
+    seen.push(expected);
+    if (expected !== current) return Response.json({ error: "file conflict" }, { status: 409 });
+    const before = current;
+    current += "-saved";
+    return Response.json(batch
+      ? { durable: true, files: [{ sourceFile: path, changed: true, matched: [true], before, after: current, version: current }] }
+      : { path, version: current, changed: true });
+  });
+  try {
+    const patch = (shown = "shown") => postPatchElement(project, path, {}, showToast, shown);
+    await patch();
+    await patchElementBatches(project, [{ sourceFile: path, ifMatch: "shown", patches: [{ target: { id: "title" }, operations: [] }] }]);
+    await patch("shown-saved");
+    current = "peer";
+    await expect(patch()).rejects.toThrow();
+    await patch("peer");
+    await expect(patch()).rejects.toThrow();
+    expect(seen).toEqual(["shown", "shown-saved", "shown-saved-saved", "shown-saved-saved-saved", "peer", "shown"]);
+  } finally { vi.unstubAllGlobals(); }
+});
 
 const selection = {
   hfId: "hf-card",

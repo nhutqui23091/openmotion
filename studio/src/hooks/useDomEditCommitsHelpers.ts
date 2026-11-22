@@ -1,3 +1,4 @@
+import { acknowledgeFileEdit, isolatedEditVersion } from "../utils/isolatedEditVersions";
 import {
   createStudioSaveHttpError,
   StudioSaveHttpError,
@@ -63,6 +64,7 @@ function reportUnmatchedBatchPatches(batch: DomEditPatchBatch, matched: boolean[
 interface AtomicElementPatchFile {
   sourceFile: string;
   changed: boolean;
+  version?: string;
   matched?: boolean[];
   before: string;
   after: string;
@@ -100,7 +102,10 @@ function isAtomicElementPatchFile(value: unknown): value is AtomicElementPatchFi
 // atomic endpoint. Splitting validation from the request would weaken that wire contract.
 // fallow-ignore-next-line complexity
 export async function patchElementBatches(projectId: string, batches: DomEditPatchBatch[]) {
-  const body = JSON.stringify({ batches });
+  const guarded = batches.map(batch => batch.ifMatch
+    ? { ...batch, ifMatch: isolatedEditVersion(projectId, batch.sourceFile, batch.ifMatch) }
+    : batch);
+  const body = JSON.stringify({ batches: guarded });
   try {
     const response = await studioApiFetch(
       `/api/projects/${encodeURIComponent(projectId)}/file-mutations/patch-element-batches`,
@@ -145,6 +150,12 @@ export async function patchElementBatches(projectId: string, batches: DomEditPat
         allMatched: matched.length === batch.patches.length && matched.every(Boolean),
       };
     });
+    if (result.durable) {
+      files.forEach((file, index) => {
+        if (file.changed && typeof file.version === "string")
+          acknowledgeFileEdit(projectId, file.sourceFile, guarded[index]?.ifMatch, file.version);
+      });
+    }
     return { durable: result.durable, files };
   } catch (error) {
     throw new AtomicElementPatchConvergenceError(getErrorDetail(error), { cause: error });
@@ -184,6 +195,7 @@ export async function postPatchElement(
   showToast: ShowToast,
   ifMatch?: string,
 ): Promise<PatchElementResponse> {
+  const expected = ifMatch && isolatedEditVersion(projectId, targetPath, ifMatch);
   const response = await studioApiFetch(
     buildProjectApiPath(
       projectId,
@@ -191,7 +203,7 @@ export async function postPatchElement(
     ),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...studioWriteHeaders(), ...(ifMatch && { "If-Match": ifMatch }) },
+      headers: { "Content-Type": "application/json", ...studioWriteHeaders(), ...(expected && { "If-Match": expected }) },
       body: JSON.stringify(body),
     },
   );
@@ -201,7 +213,9 @@ export async function postPatchElement(
       alreadyToasted: true,
     });
   }
-  return (await response.json()) as PatchElementResponse;
+  const patch = (await response.json()) as PatchElementResponse;
+  if (patch.changed) acknowledgeFileEdit(projectId, targetPath, expected, patch.version);
+  return patch;
 }
 
 interface AssignAutoIdParams {

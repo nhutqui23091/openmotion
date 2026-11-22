@@ -1103,7 +1103,8 @@ describe('Diskless Studio HTTP Routes (ETag, HEAD direct, 302 headers, DOM & GSA
       });
     assert.equal((await remove(version)).status, 409);
     assert.match(await current(), /id="title"/);
-    assert.equal((await remove(fileContentVersion(await current()))).status, 200);
+    assert.equal(result.files[0].version, fileContentVersion(await current()));
+    assert.equal((await remove(result.files[0].version)).status, 200);
     assert.doesNotMatch(await current(), /id="title"/);
   });
 
