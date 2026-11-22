@@ -168,3 +168,187 @@ test('DSH installation selects only an explicit profile and preserves unrelated 
   assert(!installationActive(status, root, path.resolve('another workspace')));
   assert(!installationActive({ ...status, tools: [] }, root, data));
 });
+
+test('DSH installation recovers when bundled CLI rejects read-only --dump-config for Electron-managed desktop profile', async () => {
+  const { existsSync } = await import('node:fs');
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execFileAsync = promisify(execFile);
+  const {
+    composeProfileModules,
+    inspectProfileModules,
+    isElectronManagedProfileError,
+    workspacePatch,
+  } = await import('../integrations/dsh/install.ts');
+  const dshIntegrationDir = fileURLToPath(new URL('../integrations/dsh', import.meta.url));
+  const dshBin = path.join(dshIntegrationDir, 'node_modules/@deepseek-ai/dsh/lib/bin.js');
+
+  const electronError = Object.assign(
+    new Error('Command failed'),
+    { stderr: 'error: profile "desktop" is managed exclusively by the Electron application\n' },
+  );
+
+  // Root test suite must not require optional integrations/dsh dependencies: verify fallback via mocks first.
+  const warnings: string[] = [];
+  const mockedDesktopModules = await inspectProfileModules(
+    'desktop',
+    async () => { throw electronError; },
+    async () => ['@deepseek-ai/dsh-action-cards', '@deepseek-ai/dsh-client-ui-action-cards'],
+    message => warnings.push(message),
+  );
+  assert.deepEqual(mockedDesktopModules, ['@deepseek-ai/dsh-action-cards', '@deepseek-ai/dsh-client-ui-action-cards']);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /desktop/i);
+
+  // Case-insensitive desktop profile names recover identically.
+  const mixedCaseModules = await inspectProfileModules(
+    'Desktop',
+    async () => { throw electronError; },
+    async () => [],
+    () => {},
+  );
+  assert.deepEqual(mixedCaseModules, []);
+
+  // Existing action-cards config overrides in cordis.patch.yml must not be clobbered even when fallback returns [].
+  const root = path.resolve('checkout with spaces'), data = path.resolve('workspace data');
+  const withCardOverride = [
+    '# Keep Desktop overrides',
+    '- id: action-cards',
+    '  config:',
+    '    queuedMessageLimit: 1',
+    '',
+  ].join('\n');
+  const preservedOverridePatch = await workspacePatch(withCardOverride, root, data, process.execPath, []);
+  assert(preservedOverridePatch.startsWith(withCardOverride));
+  assert(preservedOverridePatch.includes('id: openmotion-workspace'));
+  assert(!preservedOverridePatch.includes('@deepseek-ai/dsh-action-cards'));
+  assert(preservedOverridePatch.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+  assert.equal(await workspacePatch(preservedOverridePatch, root, data, process.execPath, []), preservedOverridePatch);
+
+  // When inherited modules report both cards, neither card entry is duplicated.
+  const inheritedPatch = await workspacePatch(withCardOverride, root, data, process.execPath, mockedDesktopModules);
+  assert(!inheritedPatch.includes('@deepseek-ai/dsh-action-cards'));
+  assert(!inheritedPatch.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+
+  // If a future DSH CLI allows read-only dumps on desktop, inherited modules are still inspected normally.
+  const upstreamFixedModules = await inspectProfileModules(
+    'desktop',
+    async () => ({ stdout: '- id: action-cards\n  name: "@deepseek-ai/dsh-action-cards"\n' }),
+    async () => { throw new Error('should not invoke fallback when dump succeeds'); },
+    () => { throw new Error('should not warn when dump succeeds'); },
+  );
+  assert.deepEqual(upstreamFixedModules, ['@deepseek-ai/dsh-action-cards']);
+
+  // Non-Electron failures on desktop (missing binary, broken YAML, unexpected CLI errors) must still fail fast.
+  const unexpectedError = Object.assign(new Error('Command failed: unexpected failure'), { stderr: 'YAMLParseError: unexpected token' });
+  assert.equal(isElectronManagedProfileError('desktop', unexpectedError), false);
+  await assert.rejects(
+    inspectProfileModules('desktop', async () => { throw unexpectedError; }, async () => [], () => {}),
+    /unexpected failure/,
+  );
+  await assert.rejects(
+    inspectProfileModules('desktop', async () => ({ stdout: 'invalid: [' }), async () => [], () => {}),
+    /Could not inspect the existing DSH profile/,
+  );
+
+  // Non-desktop profiles must never treat an Electron-profile message as recoverable.
+  assert.equal(isElectronManagedProfileError('desktop', electronError), true);
+  assert.equal(isElectronManagedProfileError('web', electronError), false);
+  await assert.rejects(
+    inspectProfileModules('web', async () => { throw electronError; }, async () => [], () => {}),
+    /Command failed/,
+  );
+
+  // When the optional DSH integration dependencies are installed, exercise the real bundled CLI rejection
+  // and verify read-only layer composition preserves inherited bundle cards and action-cards overrides.
+  if (existsSync(dshBin)) {
+    const dshHome = await mkdtemp(path.join(tmpdir(), 'openmotion-dsh-desktop-'));
+    try {
+      const profileDir = path.join(dshHome, 'profiles', 'desktop');
+      await mkdir(profileDir, { recursive: true });
+      const manifestText = JSON.stringify({
+        name: 'dsh-profile-desktop',
+        private: true,
+        dsh: { profile: { bundles: ['@deepseek-ai/dsh-personalized-recommendations'] } },
+      }, null, 2) + '\n';
+      await writeFile(path.join(profileDir, 'package.json'), manifestText);
+      await writeFile(path.join(profileDir, 'cordis.patch.yml'), withCardOverride);
+
+      const composedModules = await inspectProfileModules(
+        'desktop',
+        () => execFileAsync(process.execPath, [dshBin, '--profile', 'desktop', '--dump-config'], {
+          env: { ...process.env, DSH_HOME: dshHome },
+        }),
+        () => composeProfileModules(profileDir, dshHome, dshIntegrationDir),
+        () => {},
+      );
+      assert(composedModules.includes('@deepseek-ai/dsh-action-cards'));
+      assert(composedModules.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+      assert.equal(existsSync(path.join(profileDir, 'cordis.yml')), false, 'read-only fallback must not write cordis.yml');
+
+      const finalPatch = await workspacePatch(withCardOverride, root, data, process.execPath, composedModules);
+      assert(!finalPatch.includes('@deepseek-ai/dsh-action-cards'));
+      assert(!finalPatch.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+
+      // Verify with DSH's actual composeEntries that the user's queuedMessageLimit override survives intact.
+      await writeFile(path.join(profileDir, 'cordis.patch.yml'), finalPatch);
+      const appBoot = await import(pathToFileURL(path.join(dshIntegrationDir, 'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js')).href);
+      const installAnchor = path.join(dshIntegrationDir, 'node_modules/@deepseek-ai/dsh/package.json');
+      const bundleDir = appBoot.resolveBundleDir('dsh', '@deepseek-ai/dsh-personalized-recommendations', installAnchor, profileDir);
+      const bundleManifest = appBoot.readProfileManifest('dsh', bundleDir);
+      const bundlePatches = appBoot.bundlePatchPaths(bundleDir, bundleManifest.dsh.bundle)
+        .flatMap((p: string) => appBoot.loadOverlayPatches('dsh', p));
+      const userPatches = appBoot.loadOverlayPatches('dsh', path.join(profileDir, 'cordis.patch.yml'));
+      const composed = appBoot.composeEntries([bundlePatches, userPatches]);
+      const actionCardsEntries = composed.filter((row: { id?: string }) => row.id === 'action-cards');
+      assert.equal(actionCardsEntries.length, 1);
+      assert.equal(actionCardsEntries[0].config?.queuedMessageLimit, 1);
+
+      // Incompatible profile-local card bundles must be skipped unless explicitly exempted for the runtime version.
+      const compatProfileDir = path.join(dshHome, 'profiles', 'desktop-compat');
+      const localBundleDir = path.join(compatProfileDir, 'node_modules', 'dsh-test-future-cards');
+      await mkdir(localBundleDir, { recursive: true });
+      await writeFile(path.join(localBundleDir, 'package.json'), JSON.stringify({
+        name: 'dsh-test-future-cards',
+        version: '1.0.0',
+        engines: { dsh: '>=99.0.0' },
+        dsh: { bundle: { patch: './bundle.patch.yml' } },
+      }, null, 2) + '\n');
+      await writeFile(path.join(localBundleDir, 'bundle.patch.yml'), [
+        '- insert:',
+        '    - id: action-cards',
+        '      name: "@deepseek-ai/dsh-action-cards"',
+        '    - id: client-ui-action-cards',
+        '      name: "@deepseek-ai/dsh-client-ui-action-cards"',
+        '',
+      ].join('\n'));
+      await writeFile(path.join(compatProfileDir, 'package.json'), JSON.stringify({
+        name: 'dsh-profile-desktop-compat',
+        private: true,
+        dsh: { profile: { bundles: ['dsh-test-future-cards'] } },
+      }, null, 2) + '\n');
+      await writeFile(path.join(compatProfileDir, 'cordis.patch.yml'), '[]\n');
+
+      const skippedIncompatible = await composeProfileModules(compatProfileDir, dshHome, dshIntegrationDir);
+      assert(!skippedIncompatible.includes('@deepseek-ai/dsh-action-cards'));
+      assert(!skippedIncompatible.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+      const patchWhenIncompatible = await workspacePatch('[]\n', root, data, process.execPath, skippedIncompatible);
+      assert(patchWhenIncompatible.includes('@deepseek-ai/dsh-action-cards'));
+      assert(patchWhenIncompatible.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+
+      const dshPkg = JSON.parse(await readFile(installAnchor, 'utf8')) as { version: string };
+      await writeFile(
+        path.join(compatProfileDir, appBoot.PROFILE_COMPATIBILITY_FILENAME),
+        JSON.stringify({ 'dsh-test-future-cards@1.0.0': [dshPkg.version] }, null, 2) + '\n',
+      );
+      const includedExempted = await composeProfileModules(compatProfileDir, dshHome, dshIntegrationDir);
+      assert(includedExempted.includes('@deepseek-ai/dsh-action-cards'));
+      assert(includedExempted.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+      const patchWhenExempted = await workspacePatch('[]\n', root, data, process.execPath, includedExempted);
+      assert(!patchWhenExempted.includes('@deepseek-ai/dsh-action-cards'));
+      assert(!patchWhenExempted.includes('@deepseek-ai/dsh-client-ui-action-cards'));
+    } finally {
+      await rm(dshHome, { recursive: true, force: true });
+    }
+  }
+});

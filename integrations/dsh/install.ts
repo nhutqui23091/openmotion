@@ -26,6 +26,7 @@ export async function workspacePatch(text: string, root: string, data: string, n
   assert(isSeq(doc.contents), "Expected a DSH patch list");
   const value = (row: unknown, key: string): unknown => (row as { get: (key: string) => unknown }).get(key);
   const modules = new Set(inheritedModules);
+  const existingIds = new Set<string>();
   let entry: any;
   for (const row of doc.contents.items) {
     if (!isMap(row)) continue;
@@ -35,6 +36,7 @@ export async function workspacePatch(text: string, root: string, data: string, n
     for (const candidate of [row, ...(isSeq(inserted) ? inserted.items : [])]) {
       if (!isMap(candidate)) continue;
       if (typeof value(candidate, "name") === "string") modules.add(value(candidate, "name") as string);
+      if (typeof value(candidate, "id") === "string") existingIds.add(value(candidate, "id") as string);
       if (value(candidate, "id") === "mcp-openmotion" && value(candidate, "disabled") !== true)
         throw new Error("Disable the existing mcp-openmotion adapter before enabling the workspace plugin");
       if (value(candidate, "id") !== "openmotion-workspace") continue;
@@ -58,7 +60,7 @@ export async function workspacePatch(text: string, root: string, data: string, n
   const cards = [
     { id: "action-cards", name: "@deepseek-ai/dsh-action-cards" },
     { id: "client-ui-action-cards", name: "@deepseek-ai/dsh-client-ui-action-cards" },
-  ].filter(entry => !modules.has(entry.name));
+  ].filter(card => !modules.has(card.name) && !existingIds.has(card.id));
   if (cards.length) doc.add({ insert: cards });
   return doc.toString();
 }
@@ -69,21 +71,92 @@ export function installationActive(status: any, root: string, data: string): boo
     && ["openmotion_get_project", "openmotion_list_templates"].every(name => status.tools.includes("mcp__openmotion__" + name));
 }
 
-export async function profileModules(text: string): Promise<string[]> {
-  const { parseDocument } = await import("yaml");
-  const composed = parseDocument(text, { customTags: [{ tag: "tag:yaml.org,2002:js", resolve: (value: string) => value }] });
-  assert.equal(composed.errors.length, 0, "Could not inspect the existing DSH profile");
+function collectModuleNames(rows: unknown[]): string[] {
   const modules: string[] = [];
-  function collect(rows: any[]) {
-    for (const row of rows) {
+  function collect(items: unknown[]) {
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as { name?: unknown; group?: unknown; config?: unknown };
       if (typeof row.name === "string") modules.push(row.name);
       if (row.group && Array.isArray(row.config)) collect(row.config);
     }
   }
-  const rows = composed.toJS();
-  assert(Array.isArray(rows), "Expected a composed DSH entry list");
   collect(rows);
   return modules;
+}
+
+export async function profileModules(text: string): Promise<string[]> {
+  const { parseDocument } = await import("yaml");
+  const composed = parseDocument(text, { customTags: [{ tag: "tag:yaml.org,2002:js", resolve: (value: string) => value }] });
+  assert.equal(composed.errors.length, 0, "Could not inspect the existing DSH profile");
+  const rows = composed.toJS();
+  assert(Array.isArray(rows), "Expected a composed DSH entry list");
+  return collectModuleNames(rows);
+}
+
+export async function composeProfileModules(
+  profileDirectory: string,
+  dshHome: string,
+  dshIntegrationDir: string,
+): Promise<string[]> {
+  const appBootPath = path.join(dshIntegrationDir, "node_modules/@deepseek-ai/dsh-app-boot/lib/index.js");
+  const installAnchor = path.join(dshIntegrationDir, "node_modules/@deepseek-ai/dsh/package.json");
+  const appBoot = await import(pathToFileURL(appBootPath).href);
+  const manifest = appBoot.readProfileManifest("dsh", profileDirectory);
+  const bundles: string[] = manifest.dsh?.profile?.bundles ?? [];
+  const exemptions = bundles.length === 0 ? {} : appBoot.readProfileVersionExemptions(profileDirectory);
+  const layers: unknown[][] = [];
+  for (const packageName of bundles) {
+    try {
+      const packageDir = appBoot.resolveBundleDir("dsh", packageName, installAnchor, profileDirectory);
+      const bundleManifest = appBoot.readProfileManifest("dsh", packageDir);
+      const bundle = bundleManifest.dsh?.bundle;
+      if (!bundle) continue;
+      appBoot.assertBundlePlatform(bundle.platforms, process.platform);
+      const issue = appBoot.evaluatePluginCompatibility(bundleManifest, exemptions);
+      if (issue !== undefined && !issue.exempted) continue;
+      const patchPaths: string[] = appBoot.bundlePatchPaths(packageDir, bundle);
+      layers.push(patchPaths.flatMap((patchPath: string) => appBoot.loadOverlayPatches("dsh", patchPath)));
+    } catch {
+      // Unresolvable or incompatible bundles match loadProfileDirectory's skip behavior.
+    }
+  }
+  const profilePatchPath = path.join(profileDirectory, appBoot.PROFILE_PATCH_FILENAME);
+  const profilePatches = appBoot.loadOptionalPatches("dsh", profilePatchPath);
+  if (profilePatches !== undefined) layers.push(profilePatches);
+  const homePatches = appBoot.loadOptionalPatches("dsh", path.join(dshHome, appBoot.PROFILE_PATCH_FILENAME));
+  if (homePatches !== undefined) layers.push(homePatches);
+  return collectModuleNames(appBoot.composeEntries(layers));
+}
+
+const electronManagedProfilePattern = /profile\s+"desktop"\s+is\s+managed\s+exclusively\s+by\s+the\s+Electron\s+application/i;
+
+export function isElectronManagedProfileError(profile: string, error: unknown): boolean {
+  if (profile.toLowerCase() !== "desktop" || !error || typeof error !== "object") return false;
+  const candidate = error as { stderr?: unknown; message?: unknown };
+  const details = [candidate.stderr, candidate.message]
+    .map(value => Buffer.isBuffer(value) ? value.toString("utf8") : typeof value === "string" ? value : "")
+    .join("\n");
+  return electronManagedProfilePattern.test(details);
+}
+
+export async function inspectProfileModules(
+  profile: string,
+  dumpConfig: () => Promise<{ stdout: string }>,
+  fallbackModules: () => Promise<string[]> = async () => [],
+  warn: (message: string) => void = message => console.error(message),
+): Promise<string[]> {
+  let dump: { stdout: string };
+  try {
+    dump = await dumpConfig();
+  } catch (error) {
+    if (isElectronManagedProfileError(profile, error)) {
+      warn(`[OpenMotion] Bundled DSH CLI rejected read-only --dump-config for Electron-managed profile "${profile}"; composing profile layers directly in read-only mode.`);
+      return await fallbackModules();
+    }
+    throw error;
+  }
+  return await profileModules(dump.stdout);
 }
 
 export async function installDsh(options: Options) {
@@ -115,9 +188,15 @@ export async function installDsh(options: Options) {
     await dependencies(root);
     await dependencies(path.join(root, "integrations/dsh"));
   });
-  const dump = await run(process.execPath, [path.join(root, "integrations/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"),
-    "--profile", options.profile, "--dump-config"]);
-  const patch = await workspacePatch(original, root, data, process.execPath, await profileModules(dump.stdout));
+  const inherited = await inspectProfileModules(
+    options.profile,
+    () => run(process.execPath, [
+      path.join(root, "integrations/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"),
+      "--profile", options.profile, "--dump-config",
+    ]),
+    () => composeProfileModules(paths.profileDirectory, paths.dshHome, path.join(root, "integrations/dsh")),
+  );
+  const patch = await workspacePatch(original, root, data, process.execPath, inherited);
   await stage("Studio (reuse matching build)", async () => {
     if (!await state.sourceBuildCurrent(root)) {
       await run("npm", ["run", "build:studio"]);
